@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Bangla Task Hub</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f7f7fb; }
+    .bg-gradient-custom { background: linear-gradient(135deg, #8A2387 0%, #E94057 50%, #F27121 100%); }
+  </style>
+</head>
+<body class="text-gray-800 pb-20 select-none">
+
+  <!-- DYNAMIC TAB CONTENT -->
+  <main id="app-content" class="p-4 space-y-4 max-w-md mx-auto"></main>
+
+  <!-- BOTTOM NAVIGATION BAR -->
+  <nav class="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 flex justify-around py-2 max-w-md mx-auto shadow-lg z-50">
+    <button onclick="switchTab('home')" id="nav-home" class="flex flex-col items-center text-purple-600 text-xs font-medium">
+      <i class="fa-solid fa-house text-lg mb-1"></i>Home
+    </button>
+    <button onclick="switchTab('earn')" id="nav-earn" class="flex flex-col items-center text-gray-400 text-xs font-medium">
+      <i class="fa-solid fa-list-check text-lg mb-1"></i>Earn
+    </button>
+    <button onclick="switchTab('refer')" id="nav-refer" class="flex flex-col items-center text-gray-400 text-xs font-medium">
+      <i class="fa-solid fa-users text-lg mb-1"></i>Refer
+    </button>
+    <button onclick="switchTab('withdraw')" id="nav-withdraw" class="flex flex-col items-center text-gray-400 text-xs font-medium">
+      <i class="fa-solid fa-wallet text-lg mb-1"></i>Withdraw
+    </button>
+    <button onclick="switchTab('profile')" id="nav-profile" class="flex flex-col items-center text-gray-400 text-xs font-medium">
+      <i class="fa-solid fa-user text-lg mb-1"></i>Profile
+    </button>
+  </nav>
+
+  <script>
+    const tg = window.Telegram?.WebApp;
+    if (tg) tg.expand();
+
+    // Auto-detect Telegram user details or fallback to default values
+    const user = tg?.initDataUnsafe?.user || { first_name: 'Afsana', username: 'Afsan89445', id: '8758031849' };
+    
+    const userState = {
+      balance: 1260.00,
+      totalEarned: 1260.00,
+      referrals: 21,
+      tasksDone: 4,
+      adsWatched: 0,
+      selectedMethod: 'bkash'
+    };
+
+    function renderHome() {
+      return `
+        <div class="bg-gradient-custom rounded-3xl p-5 text-white shadow-lg">
+          <div class="flex justify-between items-center mb-4">
+            <div>
+              <p class="text-xs text-white/80 font-medium">Welcome back 👋</p>
+              <h1 class="text-2xl font-bold">${user.first_name}</h1>
+            </div>
+            <div class="w-12 h-12 rounded-full bg-white/20 border-2 border-white/40 flex items-center justify-center text-xl font-bold">
+              ${user.first_name.charAt(0)}
+            </div>
+          </div>
+          <p class="text-xs text-white/80 font-medium uppercase tracking-wider">Total Balance</p>
+          <p class="text-4xl font-extrabold my-1">৳${userState.balance.toFixed(2)}</p>
+          <p class="text-xs text-white/90">📈 Total earned: ৳${userState.totalEarned.toFixed(2)}</p>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div onclick="switchTab('withdraw')" class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex items-center space-x-3 cursor-pointer">
+            <div class="w-10 h-10 rounded-xl bg-purple-100 text-purple-600 flex items-center justify-center"><i class="fa-solid fa-wallet"></i></div>
+            <div>
+              <p class="font-bold text-sm">Withdraw</p>
+              <p class="text-xs text-gray-400">Cash out</p>
+            </div>
+          </div>
+          <div onclick="switchTab('refer')" class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex items-center space-x-3 cursor-pointer">
+            <div class="w-10 h-10 rounded-xl bg-red-100 text-red-500 flex items-center justify-center"><i class="fa-solid fa-user-plus"></i></div>
+            <div>
+              <p class="font-bold text-sm">Refer</p>
+              <p class="text-xs text-gray-400">৳50.00 / friend</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="bg-gradient-custom rounded-2xl p-4 text-white shadow-sm">
+          <div class="flex justify-between items-center mb-2">
+            <div class="flex items-center space-x-2">
+              <i class="fa-solid fa-circle-check"></i>
+              <span class="font-bold text-sm">Daily Tasks</span>
+            </div>
+            <button onclick="switchTab('earn')" class="bg-white/20 px-3 py-1 rounded-full text-xs font-semibold backdrop-blur-md">View →</button>
+          </div>
+          <p class="text-xs text-white/80 mb-3">🎉 All done!</p>
+          <div class="w-full bg-black/20 rounded-full h-2 overflow-hidden">
+            <div class="bg-white h-full" style="width: 100%"></div>
+          </div>
+          <div class="flex justify-between text-xs mt-2 text-white/90">
+            <span>4 completed</span>
+            <span>100%</span>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100">
+            <p class="text-xs text-gray-400">Total Referrals</p>
+            <p class="text-2xl font-bold text-gray-800 my-1">${userState.referrals}</p>
+          </div>
+          <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100">
+            <p class="text-xs text-gray-400">Total Earned</p>
+            <p class="text-2xl font-bold text-purple-600 my-1">৳${userState.totalEarned.toFixed(2)}</p>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderEarn() {
+      return `
+        <div class="bg-gradient-custom rounded-3xl p-5 text-white shadow-lg">
+          <p class="text-xs text-white/80 uppercase tracking-wider">Daily Ads</p>
+          <div class="flex justify-between items-baseline my-1">
+            <h1 class="text-3xl font-extrabold">Earn</h1>
+            <span class="text-sm">Today's reward: <b class="text-lg">৳10.00</b> / ad</span>
+          </div>
+        </div>
+
+        <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 space-y-3">
+          <div class="flex justify-between text-sm font-bold">
+            <span>Daily Progress</span>
+            <span class="text-purple-600">${userState.adsWatched} / 10 watched</span>
+          </div>
+          <div class="w-full bg-gray-100 rounded-full h-3">
+            <div class="bg-purple-600 h-full rounded-full" style="width: ${(userState.adsWatched/10)*100}%"></div>
+          </div>
+          <button onclick="watchAd()" class="w-full bg-purple-600 text-white font-bold py-3 rounded-xl shadow-md">
+            ▶ Watch Ad
+          </button>
+        </div>
+
+        <h3 class="font-bold text-gray-700 pt-2">Tasks</h3>
+        
+        <div class="space-y-3">
+          <div class="bg-white p-4 rounded-2xl border border-gray-100 flex items-center justify-between">
+            <div class="flex items-center space-x-3">
+              <div class="w-10 h-10 rounded-xl bg-orange-100 text-orange-500 flex items-center justify-center text-lg"><i class="fa-solid fa-gift"></i></div>
+              <div>
+                <p class="font-bold text-sm">Welcome bonus</p>
+                <span class="bg-purple-100 text-purple-600 text-xs font-bold px-2 py-0.5 rounded-md">+৳50.00</span>
+              </div>
+            </div>
+            <button class="bg-purple-50 text-purple-600 border border-purple-200 px-4 py-1.5 rounded-full text-xs font-bold">Join</button>
+          </div>
+
+          <div class="bg-white p-4 rounded-2xl border border-gray-100 flex items-center justify-between">
+            <div class="flex items-center space-x-3">
+              <div class="w-10 h-10 rounded-xl bg-blue-100 text-blue-500 flex items-center justify-center text-lg"><i class="fa-paper-plane"></i></div>
+              <div>
+                <p class="font-bold text-sm">Payment Proof Channel</p>
+                <span class="bg-purple-100 text-purple-600 text-xs font-bold px-2 py-0.5 rounded-md">+৳20.00</span>
+              </div>
+            </div>
+            <button class="bg-purple-50 text-purple-600 border border-purple-200 px-4 py-1.5 rounded-full text-xs font-bold">Join</button>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderRefer() {
+      return `
+        <div class="bg-gradient-custom rounded-3xl p-6 text-white text-center shadow-lg">
+          <div class="w-14 h-14 bg-white/20 rounded-2xl mx-auto flex items-center justify-center text-2xl mb-2">
+            <i class="fa-solid fa-user-plus"></i>
+          </div>
+          <h2 class="text-2xl font-bold">Invite & Earn</h2>
+          <p class="text-xs text-white/90 mt-1">Get <b>৳50.00</b> for every friend who joins</p>
+          <div class="mt-4 bg-white/20 p-2 rounded-xl flex items-center justify-between text-xs">
+            <span class="truncate">https://t.me/bangla_task_bot?start=${user.id}</span>
+            <button onclick="navigator.clipboard.writeText('https://t.me/bangla_task_bot?start=' + user.id); alert('Link Copied!')" class="bg-white text-purple-600 font-bold px-3 py-1 rounded-lg">Copy</button>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 text-center">
+            <p class="text-xs text-gray-400">Total Referrals</p>
+            <p class="text-2xl font-bold text-gray-800 my-1">${userState.referrals}</p>
+          </div>
+          <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 text-center">
+            <p class="text-xs text-gray-400">Total Earned</p>
+            <p class="text-2xl font-bold text-purple-600 my-1">৳${(userState.referrals * 50).toFixed(2)}</p>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderWithdraw() {
+      return `
+        <div class="bg-gradient-custom rounded-3xl p-5 text-white shadow-lg">
+          <p class="text-xs text-white/80 uppercase">Available Balance</p>
+          <h1 class="text-4xl font-extrabold my-1">৳${userState.balance.toFixed(2)}</h1>
+          <p class="text-xs text-white/90">Min. withdrawal: ৳1,020.00</p>
+        </div>
+
+        <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 space-y-4">
+          <h3 class="font-bold text-gray-800 flex items-center gap-2"><i class="fa-solid fa-download text-purple-600"></i> Request Payout</h3>
+          
+          <div>
+            <label class="text-xs text-gray-500 font-bold block mb-2">Payment Method</label>
+            <div class="grid grid-cols-2 gap-3">
+              <button onclick="setMethod('bkash')" id="btn-bkash" class="border-2 border-pink-500 bg-pink-50 py-2.5 rounded-xl font-bold text-pink-600 flex items-center justify-center gap-2">bKash</button>
+              <button onclick="setMethod('nagad')" id="btn-nagad" class="border border-gray-200 py-2.5 rounded-xl font-bold text-gray-600 flex items-center justify-center gap-2">Nagad</button>
+            </div>
+          </div>
+
+          <div>
+            <label class="text-xs text-gray-500 font-bold block mb-1">Account Number</label>
+            <input type="text" placeholder="01XXXXXXXXX" class="w-full bg-gray-50 border border-gray-200 p-3 rounded-xl text-sm outline-none focus:border-purple-600">
+          </div>
+
+          <div>
+            <label class="text-xs text-gray-500 font-bold block mb-1">Amount (Min: ৳1,020.00)</label>
+            <input type="number" value="1020" class="w-full bg-gray-50 border border-gray-200 p-3 rounded-xl text-sm outline-none focus:border-purple-600 font-bold">
+          </div>
+
+          <button onclick="alert('Withdrawal request submitted!')" class="w-full bg-gradient-custom text-white font-bold py-3.5 rounded-xl shadow-lg">
+            Request ৳1,020.00
+          </button>
+        </div>
+      `;
+    }
+
+    function renderProfile() {
+      return `
+        <div class="bg-gradient-custom rounded-3xl p-6 text-white text-center shadow-lg">
+          <div class="w-20 h-20 bg-orange-400 border-4 border-white rounded-2xl mx-auto flex items-center justify-center text-3xl font-extrabold shadow-md mb-3">
+            ${user.first_name.charAt(0)}
+          </div>
+          <h2 class="text-xl font-bold">${user.first_name} @${user.username || 'user'}</h2>
+          <p class="text-xs text-white/80 mt-1">ID: ${user.id}</p>
+        </div>
+
+        <div class="grid grid-cols-3 gap-2 text-center">
+          <div class="bg-white p-3 rounded-2xl border border-gray-100">
+            <p class="text-xs text-gray-400">Balance</p>
+            <p class="font-bold text-purple-600 text-sm mt-1">৳${userState.balance.toFixed(0)}</p>
+          </div>
+          <div class="bg-white p-3 rounded-2xl border border-gray-100">
+            <p class="text-xs text-gray-400">Withdrawn</p>
+            <p class="font-bold text-red-500 text-sm mt-1">৳0.00</p>
+          </div>
+          <div class="bg-white p-3 rounded-2xl border border-gray-100">
+            <p class="text-xs text-gray-400">Tasks Done</p>
+            <p class="font-bold text-green-600 text-sm mt-1">${userState.tasksDone}</p>
+          </div>
+        </div>
+      `;
+    }
+
+    function setMethod(method) {
+      userState.selectedMethod = method;
+      const bkashBtn = document.getElementById('btn-bkash');
+      const nagadBtn = document.getElementById('btn-nagad');
+      
+      if (method === 'bkash') {
+        bkashBtn.className = "border-2 border-pink-500 bg-pink-50 py-2.5 rounded-xl font-bold text-pink-600 flex items-center justify-center gap-2";
+        nagadBtn.className = "border border-gray-200 py-2.5 rounded-xl font-bold text-gray-600 flex items-center justify-center gap-2";
+      } else {
+        nagadBtn.className = "border-2 border-orange-500 bg-orange-50 py-2.5 rounded-xl font-bold text-orange-600 flex items-center justify-center gap-2";
+        bkashBtn.className = "border border-gray-200 py-2.5 rounded-xl font-bold text-gray-600 flex items-center justify-center gap-2";
+      }
+    }
+
+    function switchTab(tab) {
+      const app = document.getElementById('app-content');
+      document.querySelectorAll('nav button').forEach(b => {
+        b.classList.remove('text-purple-600');
+        b.classList.add('text-gray-400');
+      });
+      document.getElementById(`nav-${tab}`).classList.add('text-purple-600');
+
+      if (tab === 'home') app.innerHTML = renderHome();
+      else if (tab === 'earn') app.innerHTML = renderEarn();
+      else if (tab === 'refer') app.innerHTML = renderRefer();
+      else if (tab === 'withdraw') app.innerHTML = renderWithdraw();
+      else if (tab === 'profile') app.innerHTML = renderProfile();
+    }
+
+    function watchAd() {
+      if (userState.adsWatched < 10) {
+        userState.adsWatched++;
+        userState.balance += 10;
+        userState.totalEarned += 10;
+        switchTab('earn');
+      }
+    }
+
+    // Default load
+    switchTab('home');
+  </script>
+</body>
+</html>
