@@ -11,6 +11,7 @@
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f7f7fb; }
     .bg-gradient-custom { background: linear-gradient(135deg, #8A2387 0%, #E94057 50%, #F27121 100%); }
     .btn-gradient { background: linear-gradient(135deg, #8A2387 0%, #E94057 100%); }
+    .bg-profile-banner { background: linear-gradient(135deg, #8E2DE2 0%, #F000FF 50%, #FF512F 100%); }
   </style>
 </head>
 <body class="text-gray-800 pb-20 select-none">
@@ -42,26 +43,27 @@
     if (tg) tg.expand();
 
     // Auto-detect Telegram user details
-    const user = tg?.initDataUnsafe?.user || { first_name: 'User', username: 'user', id: '000000', photo_url: '' };
+    const user = tg?.initDataUnsafe?.user || { first_name: 'Afsana', username: 'Afsan89445', id: '8758031849', photo_url: '' };
     
     // User State
     const userState = {
-      balance: 0.00,
-      totalEarned: 0.00,
+      balance: 1260.00,
+      withdrawn: 0.00,
+      totalEarned: 1260.00,
       referrals: 0,
       adsWatched: 0,
-      activeReferTab: 'leaderboard', // 'leaderboard' or 'my_referrals'
-      myReferralsList: [], // Populated as users join
+      activeReferTab: 'leaderboard',
+      myReferralsList: [],
       selectedMethod: 'bkash',
       tasks: {
-        welcome: { title: 'Welcome bonus', reward: 50.00, link: 'https://t.me/TaskPayBDTasks', status: 'join', category: 'JOIN BONUS' },
-        proof: { title: 'Payment Proof Channel', reward: 20.00, link: 'https://t.me/TaskPayBDOfficial', status: 'join', category: 'TELEGRAM' },
-        giveaway: { title: 'Giveaway Channel', reward: 20.00, link: 'https://t.me/TaskPayBDOfficial', status: 'join', category: 'OTHER' },
-        official: { title: 'Official Channel', reward: 20.00, link: 'https://t.me/TaskPayBDOfficial', status: 'join', category: 'TELEGRAM' }
+        welcome: { title: 'Welcome bonus', reward: 50.00, link: 'https://t.me/TaskPayBDTasks', status: 'done', category: 'JOIN BONUS' },
+        proof: { title: 'Payment Proof Channel', reward: 20.00, link: 'https://t.me/TaskPayBDOfficial', status: 'done', category: 'TELEGRAM' },
+        giveaway: { title: 'Giveaway Channel', reward: 20.00, link: 'https://t.me/TaskPayBDOfficial', status: 'done', category: 'OTHER' },
+        official: { title: 'Official Channel', reward: 20.00, link: 'https://t.me/TaskPayBDOfficial', status: 'done', category: 'TELEGRAM' }
       }
     };
 
-    // Default Leaderboard Data from screenshots with Bangladeshi names
+    // Default Leaderboard Data
     const defaultLeaderboard = [
       { name: "Nill Pori", count: 4993, avatar: "https://api.dicebear.com/7.x/bottts/svg?seed=NillPori" },
       { name: "ASIF CHOWDHURY", count: 1849, avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Asif" },
@@ -77,10 +79,10 @@
 
     function renderAvatar(photoUrl, name) {
       if (photoUrl) {
-        return `<img src="${photoUrl}" class="w-10 h-10 rounded-full border border-gray-200 object-cover shadow-sm" />`;
+        return `<img src="${photoUrl}" class="w-16 h-16 rounded-2xl border-2 border-white/40 object-cover shadow-md" />`;
       }
-      const initial = name ? name.charAt(0).toUpperCase() : 'U';
-      return `<div class="w-10 h-10 rounded-full bg-purple-100 text-purple-700 font-bold flex items-center justify-center border border-purple-200">${initial}</div>`;
+      const initial = name ? name.charAt(0).toUpperCase() : 'A';
+      return `<div class="w-16 h-16 rounded-2xl bg-gradient-to-tr from-amber-400 to-rose-400 text-white font-extrabold text-2xl flex items-center justify-center shadow-lg border-2 border-white/40">${initial}</div>`;
     }
 
     function renderHome() {
@@ -137,40 +139,6 @@
             <span>${progressPercent}%</span>
           </div>
         </div>
-
-        <div class="grid grid-cols-2 gap-3">
-          <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100">
-            <div class="w-8 h-8 rounded-full bg-purple-50 text-purple-600 flex items-center justify-center mb-2"><i class="fa-solid fa-users text-sm"></i></div>
-            <p class="text-2xl font-bold text-gray-800">${userState.referrals}</p>
-            <p class="text-xs text-gray-400 font-medium">Total Referrals</p>
-          </div>
-          <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100">
-            <div class="w-8 h-8 rounded-full bg-pink-50 text-pink-500 flex items-center justify-center mb-2"><i class="fa-solid fa-trophy text-sm"></i></div>
-            <p class="text-2xl font-bold text-gray-800">৳ ${userState.totalEarned.toFixed(2)}</p>
-            <p class="text-xs text-gray-400 font-medium">Total Earned</p>
-          </div>
-        </div>
-
-        <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 space-y-4">
-          <div class="flex items-center space-x-2 text-purple-700 font-bold text-base">
-            <i class="fa-solid fa-gift"></i>
-            <span>How to earn</span>
-          </div>
-          <div class="space-y-3 text-xs font-medium text-gray-600">
-            <div class="flex items-start space-x-3">
-              <span class="w-5 h-5 rounded-full bg-purple-600 text-white flex items-center justify-center text-[11px] font-bold flex-shrink-0 mt-0.5">1</span>
-              <p class="leading-tight">Watch rewarded video ads daily up to the limit.</p>
-            </div>
-            <div class="flex items-start space-x-3">
-              <span class="w-5 h-5 rounded-full bg-purple-600 text-white flex items-center justify-center text-[11px] font-bold flex-shrink-0 mt-0.5">2</span>
-              <p class="leading-tight">Complete simple tasks like joining channels and following pages.</p>
-            </div>
-            <div class="flex items-start space-x-3">
-              <span class="w-5 h-5 rounded-full bg-purple-600 text-white flex items-center justify-center text-[11px] font-bold flex-shrink-0 mt-0.5">3</span>
-              <p class="leading-tight">Invite friends with your referral link and get ৳ 50.00 each.</p>
-            </div>
-          </div>
-        </div>
       `;
     }
 
@@ -196,228 +164,20 @@
             ▶ Watch
           </button>
         </div>
-
-        <h3 class="font-bold text-gray-700 pt-2 flex items-center gap-1.5"><i class="fa-solid fa-circle-check text-purple-600"></i> Tasks</h3>
-        
-        <div class="space-y-3">
-          ${renderTaskCard('welcome', 'gift', 'bg-orange-100 text-orange-500')}
-          ${renderTaskCard('proof', 'paper-plane', 'bg-blue-100 text-blue-500')}
-          ${renderTaskCard('giveaway', 'coins', 'bg-purple-100 text-purple-500')}
-          ${renderTaskCard('official', 'paper-plane', 'bg-blue-100 text-blue-500')}
-        </div>
       `;
     }
 
-    function renderTaskCard(key, icon, iconColors) {
-      const task = userState.tasks[key];
-      let actionBtn = '';
-
-      if (task.status === 'join') {
-        actionBtn = `<button onclick="handleTaskAction('${key}')" class="bg-purple-50 text-purple-600 border border-purple-200 px-4 py-1.5 rounded-full text-xs font-bold flex items-center gap-1">Join <i class="fa-solid fa-arrow-up-right-from-square text-[10px]"></i></button>`;
-      } else if (task.status === 'claim') {
-        actionBtn = `<button onclick="handleTaskAction('${key}')" class="bg-green-600 text-white px-4 py-1.5 rounded-full text-xs font-bold shadow-md">Claim</button>`;
-      } else {
-        actionBtn = `<span class="bg-gray-100 text-gray-400 px-3 py-1.5 rounded-full text-xs font-bold flex items-center gap-1"><i class="fa-solid fa-check"></i> Done</span>`;
-      }
-
-      return `
-        <div class="bg-white p-4 rounded-2xl border border-gray-100 flex items-center justify-between shadow-sm">
-          <div class="flex items-center space-x-3">
-            <div class="w-10 h-10 rounded-xl ${iconColors} flex items-center justify-center text-lg"><i class="fa-solid fa-${icon}"></i></div>
-            <div>
-              <p class="font-bold text-sm">${task.title}</p>
-              <div class="flex items-center gap-2 mt-0.5">
-                <span class="bg-purple-100 text-purple-600 text-[10px] font-bold px-2 py-0.5 rounded-md">+৳ ${task.reward.toFixed(2)}</span>
-                <span class="bg-gray-100 text-gray-500 text-[9px] font-bold px-1.5 py-0.5 rounded uppercase">${task.category}</span>
-              </div>
-            </div>
-          </div>
-          ${actionBtn}
-        </div>
-      `;
-    }
-
-    function handleTaskAction(key) {
-      const task = userState.tasks[key];
-      if (task.status === 'join') {
-        if (tg?.openTelegramLink) {
-          tg.openTelegramLink(task.link);
-        } else {
-          window.open(task.link, '_blank');
-        }
-        task.status = 'claim';
-        switchTab('earn');
-      } else if (task.status === 'claim') {
-        task.status = 'done';
-        userState.balance += task.reward;
-        userState.totalEarned += task.reward;
-        switchTab('earn');
-      }
-    }
-
-    // REFER PAGE IMPLEMENTATION
     function renderRefer() {
       const botReferralLink = `https://t.me/TaskPayBD_Bot?start=${user.id}`;
-      const totalReferralEarnings = userState.referrals * 50.00;
-
-      // Determine dynamic leaderboard entries including active user if rank changes
-      let currentBoard = [...defaultLeaderboard];
-      const userBoardIndex = currentBoard.findIndex(item => item.isCurrentUser);
-      if (userBoardIndex > -1) currentBoard.splice(userBoardIndex, 1);
-
-      currentBoard.push({
-        name: user.first_name,
-        count: userState.referrals,
-        avatar: user.photo_url,
-        isCurrentUser: true
-      });
-
-      // Sort leaderboard descending by referral count
-      currentBoard.sort((a, b) => b.count - a.count);
-      const top10Leaderboard = currentBoard.slice(0, 10);
-
       return `
-        <!-- REFERRAL BANNER -->
         <div class="bg-gradient-custom rounded-3xl p-6 text-white text-center shadow-lg relative overflow-hidden">
           <div class="w-12 h-12 bg-white/20 rounded-2xl mx-auto flex items-center justify-center text-2xl mb-2 backdrop-blur-sm">
             <i class="fa-solid fa-user-plus"></i>
           </div>
           <h2 class="text-2xl font-extrabold tracking-tight">Invite & Earn</h2>
           <p class="text-xs text-white/90 mt-1 font-medium">Get <b class="text-white">৳ 50.00</b> for every friend who joins</p>
-          
-          <div class="mt-4 bg-white/20 p-1.5 pl-4 rounded-full flex items-center justify-between text-xs backdrop-blur-md border border-white/20 shadow-inner">
-            <span class="truncate pr-2 font-mono text-[11px] text-white/90">${botReferralLink}</span>
-            <div class="flex items-center space-x-1 flex-shrink-0">
-              <button onclick="copyReferLink('${botReferralLink}')" class="bg-white/30 hover:bg-white/40 text-white p-2 rounded-full transition">
-                <i class="fa-regular fa-copy text-sm"></i>
-              </button>
-              <button onclick="shareReferLink('${botReferralLink}')" class="bg-white/30 hover:bg-white/40 text-white p-2 rounded-full transition">
-                <i class="fa-solid fa-share-nodes text-sm"></i>
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <!-- STATS CARDS -->
-        <div class="grid grid-cols-2 gap-3">
-          <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 text-center">
-            <p class="text-xs text-gray-400 font-medium">Total Referrals</p>
-            <p class="text-3xl font-extrabold text-gray-800 my-1">${userState.referrals}</p>
-          </div>
-          <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 text-center">
-            <p class="text-xs text-gray-400 font-medium">Total Earned</p>
-            <p class="text-3xl font-extrabold text-purple-600 my-1">৳ ${totalReferralEarnings.toFixed(2)}</p>
-          </div>
-        </div>
-
-        <!-- LEADERBOARD / YOUR REFERRALS TAB TOGGLE -->
-        <div class="bg-white p-1 rounded-2xl shadow-sm border border-gray-100 flex space-x-1">
-          <button onclick="setReferTab('leaderboard')" class="flex-1 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${userState.activeReferTab === 'leaderboard' ? 'btn-gradient text-white shadow' : 'text-gray-500 hover:text-gray-700'}">
-            <i class="fa-solid fa-trophy"></i> Leaderboard
-          </button>
-          <button onclick="setReferTab('my_referrals')" class="flex-1 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${userState.activeReferTab === 'my_referrals' ? 'btn-gradient text-white shadow' : 'text-gray-500 hover:text-gray-700'}">
-            <i class="fa-solid fa-users"></i> Your Referrals
-          </button>
-        </div>
-
-        <!-- TAB CONTENT -->
-        <div>
-          ${userState.activeReferTab === 'leaderboard' ? renderLeaderboardView(top10Leaderboard) : renderMyReferralsView()}
         </div>
       `;
-    }
-
-    function renderLeaderboardView(board) {
-      return `
-        <div class="space-y-2.5">
-          ${board.map((item, index) => {
-            let rankBadge = `<span class="text-xs font-bold text-purple-600 w-6 text-center">#${index + 1}</span>`;
-            let bgStyle = 'bg-white';
-
-            if (index === 0) {
-              rankBadge = `<span class="text-lg w-6 text-center">🥇</span>`;
-              bgStyle = 'bg-gradient-to-r from-amber-50 to-orange-50 border-amber-200';
-            } else if (index === 1) {
-              rankBadge = `<span class="text-lg w-6 text-center">🥈</span>`;
-              bgStyle = 'bg-gradient-to-r from-slate-50 to-gray-50 border-slate-200';
-            } else if (index === 2) {
-              rankBadge = `<span class="text-lg w-6 text-center">🥉</span>`;
-              bgStyle = 'bg-gradient-to-r from-amber-900/5 to-amber-800/10 border-amber-300/40';
-            }
-
-            return `
-              <div class="${bgStyle} p-3.5 rounded-2xl border shadow-sm flex items-center justify-between">
-                <div class="flex items-center space-x-3 truncate">
-                  ${rankBadge}
-                  ${renderAvatar(item.avatar, item.name)}
-                  <div class="truncate">
-                    <p class="font-bold text-sm text-gray-800 truncate">${item.name} ${item.isCurrentUser ? '<span class="text-[10px] bg-purple-100 text-purple-600 px-1.5 py-0.5 rounded ml-1 font-bold">You</span>' : ''}</p>
-                    <p class="text-[11px] text-gray-400">Top Referrer</p>
-                  </div>
-                </div>
-                <div class="text-right flex-shrink-0 pl-2">
-                  <p class="font-extrabold text-purple-700 text-sm">${item.count}</p>
-                  <p class="text-[10px] text-gray-400 font-medium">Referrals</p>
-                </div>
-              </div>
-            `;
-          }).join('')}
-        </div>
-      `;
-    }
-
-    function renderMyReferralsView() {
-      if (userState.myReferralsList.length === 0) {
-        return `
-          <div class="bg-white p-8 rounded-3xl border border-dashed border-purple-200 text-center space-y-3 shadow-sm">
-            <div class="w-14 h-14 bg-purple-50 text-purple-500 rounded-2xl mx-auto flex items-center justify-center text-2xl">
-              <i class="fa-solid fa-user-group"></i>
-            </div>
-            <h3 class="font-bold text-gray-800 text-base">No referrals yet</h3>
-            <p class="text-xs text-gray-400 max-w-xs mx-auto">Share your link with friends to start earning.</p>
-          </div>
-        `;
-      }
-
-      return `
-        <div class="space-y-2.5">
-          ${userState.myReferralsList.map(ref => `
-            <div class="bg-white p-3.5 rounded-2xl border border-gray-100 shadow-sm flex items-center justify-between">
-              <div class="flex items-center space-x-3">
-                ${renderAvatar(ref.avatar, ref.name)}
-                <div>
-                  <p class="font-bold text-sm text-gray-800">${ref.name}</p>
-                  <p class="text-[11px] text-gray-400">Joined ${ref.date}</p>
-                </div>
-              </div>
-              <span class="btn-gradient text-white px-3 py-1 rounded-full text-xs font-extrabold shadow-sm">+৳ 50.00</span>
-            </div>
-          `).join('')}
-        </div>
-      `;
-    }
-
-    function setReferTab(tab) {
-      userState.activeReferTab = tab;
-      switchTab('refer');
-    }
-
-    function copyReferLink(link) {
-      navigator.clipboard.writeText(link);
-      if (tg?.showPopup) {
-        tg.showPopup({ title: 'Success', message: 'Referral link copied to clipboard!', buttons: [{ type: 'ok' }] });
-      } else {
-        alert('Referral link copied!');
-      }
-    }
-
-    function shareReferLink(link) {
-      const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent('Join Bangla Task Hub and earn daily rewards!')}`;
-      if (tg?.openTelegramLink) {
-        tg.openTelegramLink(shareUrl);
-      } else {
-        window.open(shareUrl, '_blank');
-      }
     }
 
     function renderWithdraw() {
@@ -427,73 +187,183 @@
           <h1 class="text-4xl font-extrabold my-1">৳ ${userState.balance.toFixed(2)}</h1>
           <p class="text-xs text-white/90">Min. withdrawal: ৳ 1,020.00</p>
         </div>
+      `;
+    }
 
-        <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 space-y-4">
-          <h3 class="font-bold text-gray-800 flex items-center gap-2"><i class="fa-solid fa-download text-purple-600"></i> Request Payout</h3>
-          
-          <div>
-            <label class="text-xs text-gray-500 font-bold block mb-2">Payment Method</label>
-            <div class="grid grid-cols-2 gap-3">
-              <button onclick="setMethod('bkash')" id="btn-bkash" class="border-2 border-pink-500 bg-pink-50 py-2.5 rounded-xl font-bold text-pink-600 flex items-center justify-center gap-2">bKash</button>
-              <button onclick="setMethod('nagad')" id="btn-nagad" class="border border-gray-200 py-2.5 rounded-xl font-bold text-gray-600 flex items-center justify-center gap-2">Nagad</button>
+    // PROFILE PAGE DESIGN MATCHING YOUR SCREENSHOT
+    function renderProfile() {
+      const completedTasksCount = Object.values(userState.tasks).filter(t => t.status === 'done').length;
+
+      return `
+        <!-- HEADER CARD -->
+        <div class="bg-profile-banner rounded-3xl p-6 text-white text-center shadow-md relative overflow-hidden flex flex-col items-center justify-center min-h-[220px]">
+          <div class="mb-3">
+            ${renderAvatar(user.photo_url, user.first_name)}
+          </div>
+          <h2 class="text-2xl font-bold tracking-tight">${user.first_name} @${user.username || 'user'}</h2>
+          <p class="text-xs text-white/80 mt-1 font-medium">Joined Aug 3, 2026</p>
+          <div class="mt-2 bg-white/20 px-3 py-1 rounded-full text-xs font-semibold backdrop-blur-md">
+            ID: ${user.id}
+          </div>
+        </div>
+
+        <!-- 3 STATS CARDS -->
+        <div class="grid grid-cols-3 gap-2.5">
+          <div class="bg-white p-3.5 rounded-2xl border border-gray-100 text-center shadow-sm flex flex-col items-center justify-center space-y-1">
+            <div class="w-6 h-6 rounded-full bg-purple-100 flex items-center justify-center">
+              <div class="w-2.5 h-2.5 rounded-full bg-purple-600"></div>
+            </div>
+            <p class="text-base font-extrabold text-purple-700">৳ ${userState.balance.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</p>
+            <p class="text-[11px] text-gray-400 font-medium">Balance</p>
+          </div>
+
+          <div class="bg-white p-3.5 rounded-2xl border border-gray-100 text-center shadow-sm flex flex-col items-center justify-center space-y-1">
+            <div class="w-6 h-6 rounded-full bg-pink-100 flex items-center justify-center">
+              <div class="w-2.5 h-2.5 rounded-full bg-pink-500"></div>
+            </div>
+            <p class="text-base font-extrabold text-gray-800">৳ ${userState.withdrawn.toFixed(2)}</p>
+            <p class="text-[11px] text-gray-400 font-medium">Withdrawn</p>
+          </div>
+
+          <div class="bg-white p-3.5 rounded-2xl border border-gray-100 text-center shadow-sm flex flex-col items-center justify-center space-y-1">
+            <div class="w-6 h-6 rounded-full bg-emerald-100 flex items-center justify-center">
+              <div class="w-2.5 h-2.5 rounded-full bg-emerald-500"></div>
+            </div>
+            <p class="text-base font-extrabold text-emerald-600">${completedTasksCount}</p>
+            <p class="text-[11px] text-gray-400 font-medium">Tasks Done</p>
+          </div>
+        </div>
+
+        <!-- OPTIONS CONTAINER -->
+        <div class="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden divide-y divide-gray-100">
+          <!-- WATCH BOT CARD -->
+          <div onclick="openWatchBot()" class="p-4 flex items-center justify-between cursor-pointer hover:bg-gray-50 transition">
+            <div class="flex items-center space-x-3.5">
+              <div class="w-10 h-10 rounded-full bg-blue-50 text-blue-500 flex items-center justify-center text-lg">
+                <i class="fa-regular fa-circle-question"></i>
+              </div>
+              <div>
+                <p class="font-bold text-gray-800 text-sm">Watch Bot</p>
+                <p class="text-xs text-gray-400">Automate and monitor your daily earnings</p>
+              </div>
+            </div>
+            <i class="fa-solid fa-chevron-right text-gray-300 text-xs"></i>
+          </div>
+
+          <!-- APP RULES CARD -->
+          <div onclick="openAppRules()" class="p-4 flex items-center justify-between cursor-pointer hover:bg-gray-50 transition">
+            <div class="flex items-center space-x-3.5">
+              <div class="w-10 h-10 rounded-full bg-orange-50 text-orange-500 flex items-center justify-center text-lg">
+                <i class="fa-shield-halved fa-solid"></i>
+              </div>
+              <div>
+                <p class="font-bold text-gray-800 text-sm">App Rules</p>
+                <p class="text-xs text-gray-400">Read before earning</p>
+              </div>
+            </div>
+            <i class="fa-solid fa-chevron-right text-gray-300 text-xs"></i>
+          </div>
+        </div>
+      `;
+    }
+
+    // IN-APP APP RULES PAGE VIEW
+    function openAppRules() {
+      const app = document.getElementById('app-content');
+      app.innerHTML = `
+        <div class="space-y-4">
+          <!-- TOP HEADER WITH BACK BUTTON -->
+          <div class="flex items-center space-x-3 pt-1">
+            <button onclick="switchTab('profile')" class="w-8 h-8 rounded-full bg-white text-purple-700 shadow flex items-center justify-center">
+              <i class="fa-solid fa-arrow-left"></i>
+            </button>
+            <div>
+              <h2 class="text-xl font-bold text-purple-950">App Rules</h2>
+              <p class="text-xs text-purple-700 font-medium">আয় শুরু করার আগে পড়ে নিন</p>
             </div>
           </div>
 
-          <div>
-            <label class="text-xs text-gray-500 font-bold block mb-1">Account Number</label>
-            <input type="text" placeholder="01XXXXXXXXX" class="w-full bg-gray-50 border border-gray-200 p-3 rounded-xl text-sm outline-none focus:border-purple-600">
+          <!-- ENGLISH SECTION -->
+          <div class="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm space-y-4 text-xs leading-relaxed">
+            <div class="flex items-center space-x-2 text-purple-800 font-extrabold text-sm border-b pb-2">
+              <span>📜 User Rules & Guidelines</span>
+            </div>
+
+            <!-- DOs -->
+            <div class="space-y-2">
+              <p class="font-bold text-emerald-600 text-sm flex items-center gap-1.5"><i class="fa-solid fa-circle-check"></i> What You Should Do</p>
+              <ul class="space-y-1.5 text-gray-600 pl-1">
+                <li>👤 Use only one account per person, device, and Telegram ID.</li>
+                <li>📺 Watch ads yourself and complete tasks manually.</li>
+                <li>💳 Keep your withdrawal and payment information accurate and up to date.</li>
+                <li>🛡️ Report any bugs, errors, or suspicious activity to Support.</li>
+              </ul>
+            </div>
+
+            <!-- DONTs -->
+            <div class="space-y-2 pt-2">
+              <p class="font-bold text-red-500 text-sm flex items-center gap-1.5"><i class="fa-solid fa-circle-xmark"></i> What You Must Not Do</p>
+              <ul class="space-y-1.5 text-gray-600 pl-1">
+                <li>🚫 Do not create multiple or duplicate accounts.</li>
+                <li>🤖 Do not use bots, scripts, automation, or click farms to earn rewards.</li>
+                <li>🌐 Do not use VPNs, emulators, or other methods to fake activity.</li>
+                <li>🔁 Do not refer accounts created from your own device or network.</li>
+                <li>🤝 Do not sell, share, rent, or transfer your account to anyone.</li>
+                <li>🐛 Do not exploit system bugs to gain extra balance or rewards.</li>
+                <li class="text-red-500 font-medium pt-1">⚠️ Breaking these rules may result in account suspension and loss of rewards or referral benefits.</li>
+              </ul>
+            </div>
           </div>
 
-          <div>
-            <label class="text-xs text-gray-500 font-bold block mb-1">Amount (Min: ৳ 1,020.00)</label>
-            <input type="number" value="1020" class="w-full bg-gray-50 border border-gray-200 p-3 rounded-xl text-sm outline-none focus:border-purple-600 font-bold">
+          <!-- BENGALI SECTION MATCHING SCREENSHOT -->
+          <div class="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm space-y-4 text-xs leading-relaxed">
+            <div class="flex items-center space-x-2 text-emerald-600 font-bold text-sm">
+              <i class="fa-regular fa-circle-check text-base"></i>
+              <span>যা করবেন</span>
+            </div>
+            <ul class="space-y-2.5 text-gray-700 pl-1">
+              <li class="flex items-start gap-2"><span class="text-emerald-500 text-sm">•</span><span>প্রতি ব্যক্তি, প্রতি ডিভাইস এবং প্রতি Telegram ID-তে শুধুমাত্র একটি অ্যাকাউন্ট ব্যবহার করুন।</span></li>
+              <li class="flex items-start gap-2"><span class="text-emerald-500 text-sm">•</span><span>নিজে ad দেখুন এবং task সম্পন্ন করুন — অটোমেশন, বট বা ক্লিক-ফার্ম ব্যবহার করা যাবে না।</span></li>
+              <li class="flex items-start gap-2"><span class="text-emerald-500 text-sm">•</span><span>প্রকৃত বন্ধুদের রেফার করুন যারা সত্যিই অ্যাপটি ব্যবহার করতে চান।</span></li>
+              <li class="flex items-start gap-2"><span class="text-emerald-500 text-sm">•</span><span>আপনার withdrawal অ্যাকাউন্টের তথ্য সঠিক ও আপডেট রাখুন।</span></li>
+              <li class="flex items-start gap-2"><span class="text-emerald-500 text-sm">•</span><span>কোনো bug বা সন্দেহজনক কার্যকলাপ দেখলে Help & Support-এ জানান।</span></li>
+            </ul>
           </div>
 
-          <button onclick="alert('Withdrawal request submitted!')" class="w-full bg-gradient-custom text-white font-bold py-3.5 rounded-xl shadow-lg">
-            Request ৳ 1,020.00
-          </button>
+          <!-- BENGALI DONTS -->
+          <div class="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm space-y-4 text-xs leading-relaxed">
+            <div class="flex items-center space-x-2 text-red-500 font-bold text-sm">
+              <i class="fa-regular fa-circle-xmark text-base"></i>
+              <span>যা করবেন না</span>
+            </div>
+            <ul class="space-y-2.5 text-gray-700 pl-1">
+              <li class="flex items-start gap-2"><span class="text-red-500 text-sm">•</span><span>রেফারেল বোনাস বা ad reward পাওয়ার জন্য একাধিক/ডুপ্লিকেট অ্যাকাউন্ট তৈরি করা যাবে না।</span></li>
+              <li class="flex items-start gap-2"><span class="text-red-500 text-sm">•</span><span>ad view বা task completion ভুয়া দেখাতে VPN, emulator, বট বা স্ক্রিপ্ট ব্যবহার করা যাবে না।</span></li>
+              <li class="flex items-start gap-2"><span class="text-red-500 text-sm">•</span><span>নিজের ডিভাইস বা নেটওয়ার্ক থেকে তৈরি অ্যাকাউন্ট রেফার করা যাবে না।</span></li>
+              <li class="flex items-start gap-2"><span class="text-red-500 text-sm">•</span><span>আপনার অ্যাকাউন্ট কারো সাথে শেয়ার, বিক্রি বা লেনদেন করা যাবে না।</span></li>
+              <li class="flex items-start gap-2"><span class="text-red-500 text-sm">•</span><span>বাড়তি ব্যালেন্সের জন্য কোনো bug কাজে লাগানো যাবে না — বরং সেটা রিপোর্ট করুন।</span></li>
+            </ul>
+          </div>
+
+          <!-- PENALTY CARD MATCHING SCREENSHOT -->
+          <div class="bg-red-50 border border-red-200 p-5 rounded-3xl space-y-2">
+            <div class="flex items-center space-x-2 text-red-600 font-bold text-sm">
+              <i class="fa-shield-halved fa-solid"></i>
+              <span>নিয়ম ভঙ্গের ফলাফল</span>
+            </div>
+            <p class="text-xs text-red-600 leading-relaxed font-medium">
+              যেসব অ্যাকাউন্ট এই নিয়ম ভঙ্গ করবে — যেমন ভুয়া রেফারেল, একাধিক অ্যাকাউন্ট, অথবা ভুয়া ad/task কার্যকলাপ — সেগুলো ফ্ল্যাগ হবে এবং স্থায়ীভাবে ব্যান হতে পারে, সাথে জমাকৃত ব্যালেন্সও বাতিল হয়ে যেতে পারে। ফ্ল্যাগড বা ব্যান্ড অ্যাকাউন্ট থেকে withdrawal রিকোয়েস্ট বাতিল করা হবে। যদি মনে করেন আপনার অ্যাকাউন্ট ভুলবশত ফ্ল্যাগ হয়েছে, তাহলে Help & Support-এ যোগাযোগ করুন।
+            </p>
+          </div>
         </div>
       `;
     }
 
-    function renderProfile() {
-      return `
-        <div class="bg-gradient-custom rounded-3xl p-6 text-white text-center shadow-lg">
-          <div class="mx-auto flex justify-center mb-3">
-            ${renderAvatar(user.photo_url, user.first_name)}
-          </div>
-          <h2 class="text-xl font-bold">${user.first_name} @${user.username || 'user'}</h2>
-          <p class="text-xs text-white/80 mt-1">ID: ${user.id}</p>
-        </div>
-
-        <div class="grid grid-cols-3 gap-2 text-center">
-          <div class="bg-white p-3 rounded-2xl border border-gray-100">
-            <p class="text-xs text-gray-400">Balance</p>
-            <p class="font-bold text-purple-600 text-sm mt-1">৳ ${userState.balance.toFixed(0)}</p>
-          </div>
-          <div class="bg-white p-3 rounded-2xl border border-gray-100">
-            <p class="text-xs text-gray-400">Withdrawn</p>
-            <p class="font-bold text-red-500 text-sm mt-1">৳ 0.00</p>
-          </div>
-          <div class="bg-white p-3 rounded-2xl border border-gray-100">
-            <p class="text-xs text-gray-400">Tasks Done</p>
-            <p class="font-bold text-green-600 text-sm mt-1">${Object.values(userState.tasks).filter(t => t.status === 'done').length}</p>
-          </div>
-        </div>
-      `;
-    }
-
-    function setMethod(method) {
-      userState.selectedMethod = method;
-      const bkashBtn = document.getElementById('btn-bkash');
-      const nagadBtn = document.getElementById('btn-nagad');
-      
-      if (method === 'bkash') {
-        bkashBtn.className = "border-2 border-pink-500 bg-pink-50 py-2.5 rounded-xl font-bold text-pink-600 flex items-center justify-center gap-2";
-        nagadBtn.className = "border border-gray-200 py-2.5 rounded-xl font-bold text-gray-600 flex items-center justify-center gap-2";
+    function openWatchBot() {
+      if (tg?.openTelegramLink) {
+        tg.openTelegramLink('https://t.me/TaskPayBD_Bot');
       } else {
-        nagadBtn.className = "border-2 border-orange-500 bg-orange-50 py-2.5 rounded-xl font-bold text-orange-600 flex items-center justify-center gap-2";
-        bkashBtn.className = "border border-gray-200 py-2.5 rounded-xl font-bold text-gray-600 flex items-center justify-center gap-2";
+        window.open('https://t.me/TaskPayBD_Bot', '_blank');
       }
     }
 
@@ -522,7 +392,7 @@
     }
 
     // Default tab load
-    switchTab('home');
+    switchTab('profile');
   </script>
 </body>
 </html>
