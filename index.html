@@ -10,6 +10,7 @@
   <style>
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f7f7fb; }
     .bg-gradient-custom { background: linear-gradient(135deg, #8A2387 0%, #E94057 50%, #F27121 100%); }
+    .btn-gradient { background: linear-gradient(135deg, #8A2387 0%, #E94057 100%); }
   </style>
 </head>
 <body class="text-gray-800 pb-20 select-none">
@@ -43,12 +44,14 @@
     // Auto-detect Telegram user details
     const user = tg?.initDataUnsafe?.user || { first_name: 'User', username: 'user', id: '000000', photo_url: '' };
     
-    // Default zero state
+    // User State
     const userState = {
       balance: 0.00,
-      totalEarned: 0.00, // Lifetime total earned (never decreases)
+      totalEarned: 0.00,
       referrals: 0,
       adsWatched: 0,
+      activeReferTab: 'leaderboard', // 'leaderboard' or 'my_referrals'
+      myReferralsList: [], // Populated as users join
       selectedMethod: 'bkash',
       tasks: {
         welcome: { title: 'Welcome bonus', reward: 50.00, link: 'https://t.me/TaskPayBDTasks', status: 'join', category: 'JOIN BONUS' },
@@ -58,11 +61,26 @@
       }
     };
 
-    function renderAvatar() {
-      if (user.photo_url) {
-        return `<img src="${user.photo_url}" class="w-12 h-12 rounded-full border-2 border-white/40 object-cover shadow-sm" />`;
+    // Default Leaderboard Data from screenshots with Bangladeshi names
+    const defaultLeaderboard = [
+      { name: "Nill Pori", count: 4993, avatar: "https://api.dicebear.com/7.x/bottts/svg?seed=NillPori" },
+      { name: "ASIF CHOWDHURY", count: 1849, avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Asif" },
+      { name: "Niloy & Mujahid", count: 610, avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Niloy" },
+      { name: "Arpi", count: 325, avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Arpi" },
+      { name: "Syed Nayeemul", count: 272, avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Syed" },
+      { name: "2070895", count: 265, avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=2070" },
+      { name: "SR Sultan", count: 242, avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Sultan" },
+      { name: "🇧🇩 Bangla Task Hub", count: 240, avatar: "https://api.dicebear.com/7.x/identicon/svg?seed=BanglaHub" },
+      { name: "Md Jahidh", count: 234, avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Jahid" },
+      { name: "Sadiya Akter Lisha", count: 229, avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Sadiya" }
+    ];
+
+    function renderAvatar(photoUrl, name) {
+      if (photoUrl) {
+        return `<img src="${photoUrl}" class="w-10 h-10 rounded-full border border-gray-200 object-cover shadow-sm" />`;
       }
-      return `<div class="w-12 h-12 rounded-full bg-white/20 border-2 border-white/40 flex items-center justify-center text-xl font-bold">${user.first_name.charAt(0)}</div>`;
+      const initial = name ? name.charAt(0).toUpperCase() : 'U';
+      return `<div class="w-10 h-10 rounded-full bg-purple-100 text-purple-700 font-bold flex items-center justify-center border border-purple-200">${initial}</div>`;
     }
 
     function renderHome() {
@@ -78,7 +96,7 @@
               <p class="text-xs text-white/80 font-medium">Welcome back 👋</p>
               <h1 class="text-2xl font-bold">${user.first_name}</h1>
             </div>
-            ${renderAvatar()}
+            ${renderAvatar(user.photo_url, user.first_name)}
           </div>
           <p class="text-xs text-white/80 font-medium uppercase tracking-wider">Total Balance</p>
           <p class="text-4xl font-extrabold my-1">৳ ${userState.balance.toFixed(2)}</p>
@@ -133,7 +151,6 @@
           </div>
         </div>
 
-        <!-- HOW TO EARN SECTION -->
         <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 space-y-4">
           <div class="flex items-center space-x-2 text-purple-700 font-bold text-base">
             <i class="fa-solid fa-gift"></i>
@@ -233,36 +250,174 @@
       } else if (task.status === 'claim') {
         task.status = 'done';
         userState.balance += task.reward;
-        userState.totalEarned += task.reward; // Updates lifetime balance
+        userState.totalEarned += task.reward;
         switchTab('earn');
       }
     }
 
+    // REFER PAGE IMPLEMENTATION
     function renderRefer() {
+      const botReferralLink = `https://t.me/TaskPayBD_Bot?start=${user.id}`;
+      const totalReferralEarnings = userState.referrals * 50.00;
+
+      // Determine dynamic leaderboard entries including active user if rank changes
+      let currentBoard = [...defaultLeaderboard];
+      const userBoardIndex = currentBoard.findIndex(item => item.isCurrentUser);
+      if (userBoardIndex > -1) currentBoard.splice(userBoardIndex, 1);
+
+      currentBoard.push({
+        name: user.first_name,
+        count: userState.referrals,
+        avatar: user.photo_url,
+        isCurrentUser: true
+      });
+
+      // Sort leaderboard descending by referral count
+      currentBoard.sort((a, b) => b.count - a.count);
+      const top10Leaderboard = currentBoard.slice(0, 10);
+
       return `
-        <div class="bg-gradient-custom rounded-3xl p-6 text-white text-center shadow-lg">
-          <div class="w-14 h-14 bg-white/20 rounded-2xl mx-auto flex items-center justify-center text-2xl mb-2">
+        <!-- REFERRAL BANNER -->
+        <div class="bg-gradient-custom rounded-3xl p-6 text-white text-center shadow-lg relative overflow-hidden">
+          <div class="w-12 h-12 bg-white/20 rounded-2xl mx-auto flex items-center justify-center text-2xl mb-2 backdrop-blur-sm">
             <i class="fa-solid fa-user-plus"></i>
           </div>
-          <h2 class="text-2xl font-bold">Invite & Earn</h2>
-          <p class="text-xs text-white/90 mt-1">Get <b>৳ 50.00</b> for every friend who joins</p>
-          <div class="mt-4 bg-white/20 p-2 rounded-xl flex items-center justify-between text-xs backdrop-blur-md">
-            <span class="truncate px-2">https://t.me/TaskPayBD_Bot?start=${user.id}</span>
-            <button onclick="navigator.clipboard.writeText('https://t.me/TaskPayBD_Bot?start=' + user.id); alert('Referral link copied!')" class="bg-white text-purple-600 font-bold px-3 py-1 rounded-lg shadow-sm">Copy</button>
+          <h2 class="text-2xl font-extrabold tracking-tight">Invite & Earn</h2>
+          <p class="text-xs text-white/90 mt-1 font-medium">Get <b class="text-white">৳ 50.00</b> for every friend who joins</p>
+          
+          <div class="mt-4 bg-white/20 p-1.5 pl-4 rounded-full flex items-center justify-between text-xs backdrop-blur-md border border-white/20 shadow-inner">
+            <span class="truncate pr-2 font-mono text-[11px] text-white/90">${botReferralLink}</span>
+            <div class="flex items-center space-x-1 flex-shrink-0">
+              <button onclick="copyReferLink('${botReferralLink}')" class="bg-white/30 hover:bg-white/40 text-white p-2 rounded-full transition">
+                <i class="fa-regular fa-copy text-sm"></i>
+              </button>
+              <button onclick="shareReferLink('${botReferralLink}')" class="bg-white/30 hover:bg-white/40 text-white p-2 rounded-full transition">
+                <i class="fa-solid fa-share-nodes text-sm"></i>
+              </button>
+            </div>
           </div>
         </div>
 
+        <!-- STATS CARDS -->
         <div class="grid grid-cols-2 gap-3">
           <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 text-center">
-            <p class="text-xs text-gray-400">Total Referrals</p>
-            <p class="text-2xl font-bold text-gray-800 my-1">${userState.referrals}</p>
+            <p class="text-xs text-gray-400 font-medium">Total Referrals</p>
+            <p class="text-3xl font-extrabold text-gray-800 my-1">${userState.referrals}</p>
           </div>
           <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 text-center">
-            <p class="text-xs text-gray-400">Total Earned</p>
-            <p class="text-2xl font-bold text-purple-600 my-1">৳ ${(userState.referrals * 50).toFixed(2)}</p>
+            <p class="text-xs text-gray-400 font-medium">Total Earned</p>
+            <p class="text-3xl font-extrabold text-purple-600 my-1">৳ ${totalReferralEarnings.toFixed(2)}</p>
           </div>
         </div>
+
+        <!-- LEADERBOARD / YOUR REFERRALS TAB TOGGLE -->
+        <div class="bg-white p-1 rounded-2xl shadow-sm border border-gray-100 flex space-x-1">
+          <button onclick="setReferTab('leaderboard')" class="flex-1 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${userState.activeReferTab === 'leaderboard' ? 'btn-gradient text-white shadow' : 'text-gray-500 hover:text-gray-700'}">
+            <i class="fa-solid fa-trophy"></i> Leaderboard
+          </button>
+          <button onclick="setReferTab('my_referrals')" class="flex-1 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${userState.activeReferTab === 'my_referrals' ? 'btn-gradient text-white shadow' : 'text-gray-500 hover:text-gray-700'}">
+            <i class="fa-solid fa-users"></i> Your Referrals
+          </button>
+        </div>
+
+        <!-- TAB CONTENT -->
+        <div>
+          ${userState.activeReferTab === 'leaderboard' ? renderLeaderboardView(top10Leaderboard) : renderMyReferralsView()}
+        </div>
       `;
+    }
+
+    function renderLeaderboardView(board) {
+      return `
+        <div class="space-y-2.5">
+          ${board.map((item, index) => {
+            let rankBadge = `<span class="text-xs font-bold text-purple-600 w-6 text-center">#${index + 1}</span>`;
+            let bgStyle = 'bg-white';
+
+            if (index === 0) {
+              rankBadge = `<span class="text-lg w-6 text-center">🥇</span>`;
+              bgStyle = 'bg-gradient-to-r from-amber-50 to-orange-50 border-amber-200';
+            } else if (index === 1) {
+              rankBadge = `<span class="text-lg w-6 text-center">🥈</span>`;
+              bgStyle = 'bg-gradient-to-r from-slate-50 to-gray-50 border-slate-200';
+            } else if (index === 2) {
+              rankBadge = `<span class="text-lg w-6 text-center">🥉</span>`;
+              bgStyle = 'bg-gradient-to-r from-amber-900/5 to-amber-800/10 border-amber-300/40';
+            }
+
+            return `
+              <div class="${bgStyle} p-3.5 rounded-2xl border shadow-sm flex items-center justify-between">
+                <div class="flex items-center space-x-3 truncate">
+                  ${rankBadge}
+                  ${renderAvatar(item.avatar, item.name)}
+                  <div class="truncate">
+                    <p class="font-bold text-sm text-gray-800 truncate">${item.name} ${item.isCurrentUser ? '<span class="text-[10px] bg-purple-100 text-purple-600 px-1.5 py-0.5 rounded ml-1 font-bold">You</span>' : ''}</p>
+                    <p class="text-[11px] text-gray-400">Top Referrer</p>
+                  </div>
+                </div>
+                <div class="text-right flex-shrink-0 pl-2">
+                  <p class="font-extrabold text-purple-700 text-sm">${item.count}</p>
+                  <p class="text-[10px] text-gray-400 font-medium">Referrals</p>
+                </div>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      `;
+    }
+
+    function renderMyReferralsView() {
+      if (userState.myReferralsList.length === 0) {
+        return `
+          <div class="bg-white p-8 rounded-3xl border border-dashed border-purple-200 text-center space-y-3 shadow-sm">
+            <div class="w-14 h-14 bg-purple-50 text-purple-500 rounded-2xl mx-auto flex items-center justify-center text-2xl">
+              <i class="fa-solid fa-user-group"></i>
+            </div>
+            <h3 class="font-bold text-gray-800 text-base">No referrals yet</h3>
+            <p class="text-xs text-gray-400 max-w-xs mx-auto">Share your link with friends to start earning.</p>
+          </div>
+        `;
+      }
+
+      return `
+        <div class="space-y-2.5">
+          ${userState.myReferralsList.map(ref => `
+            <div class="bg-white p-3.5 rounded-2xl border border-gray-100 shadow-sm flex items-center justify-between">
+              <div class="flex items-center space-x-3">
+                ${renderAvatar(ref.avatar, ref.name)}
+                <div>
+                  <p class="font-bold text-sm text-gray-800">${ref.name}</p>
+                  <p class="text-[11px] text-gray-400">Joined ${ref.date}</p>
+                </div>
+              </div>
+              <span class="btn-gradient text-white px-3 py-1 rounded-full text-xs font-extrabold shadow-sm">+৳ 50.00</span>
+            </div>
+          `).join('')}
+        </div>
+      `;
+    }
+
+    function setReferTab(tab) {
+      userState.activeReferTab = tab;
+      switchTab('refer');
+    }
+
+    function copyReferLink(link) {
+      navigator.clipboard.writeText(link);
+      if (tg?.showPopup) {
+        tg.showPopup({ title: 'Success', message: 'Referral link copied to clipboard!', buttons: [{ type: 'ok' }] });
+      } else {
+        alert('Referral link copied!');
+      }
+    }
+
+    function shareReferLink(link) {
+      const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent('Join Bangla Task Hub and earn daily rewards!')}`;
+      if (tg?.openTelegramLink) {
+        tg.openTelegramLink(shareUrl);
+      } else {
+        window.open(shareUrl, '_blank');
+      }
     }
 
     function renderWithdraw() {
@@ -305,7 +460,7 @@
       return `
         <div class="bg-gradient-custom rounded-3xl p-6 text-white text-center shadow-lg">
           <div class="mx-auto flex justify-center mb-3">
-            ${renderAvatar()}
+            ${renderAvatar(user.photo_url, user.first_name)}
           </div>
           <h2 class="text-xl font-bold">${user.first_name} @${user.username || 'user'}</h2>
           <p class="text-xs text-white/80 mt-1">ID: ${user.id}</p>
@@ -366,7 +521,7 @@
       }
     }
 
-    // Default load
+    // Default tab load
     switchTab('home');
   </script>
 </body>
