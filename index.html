@@ -12,28 +12,58 @@
     .bg-gradient-custom { background: linear-gradient(135deg, #8A2387 0%, #E94057 50%, #F27121 100%); }
     .btn-gradient { background: linear-gradient(135deg, #8A2387 0%, #E94057 100%); }
     .bg-profile-banner { background: linear-gradient(135deg, #8E2DE2 0%, #F000FF 50%, #FF512F 100%); }
+
+    /* Button hover & touch scale transition */
+    .btn-interactive {
+      transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.2s ease;
+    }
+    .btn-interactive:hover {
+      transform: scale(1.02);
+    }
+    .btn-interactive:active {
+      transform: scale(0.95);
+    }
+
+    /* Spring / Overshoot Animations */
+    @keyframes slideInOvershootLeft {
+      0% { opacity: 0; transform: translateX(-60px); }
+      70% { transform: translateX(12px); }
+      100% { opacity: 1; transform: translateX(0); }
+    }
+    @keyframes slideInOvershootRight {
+      0% { opacity: 0; transform: translateX(60px); }
+      70% { transform: translateX(-12px); }
+      100% { opacity: 1; transform: translateX(0); }
+    }
+
+    .animate-slide-left {
+      animation: slideInOvershootLeft 0.5s cubic-bezier(0.25, 1, 0.5, 1) forwards;
+    }
+    .animate-slide-right {
+      animation: slideInOvershootRight 0.5s cubic-bezier(0.25, 1, 0.5, 1) forwards;
+    }
   </style>
 </head>
-<body class="text-gray-800 pb-20 select-none">
+<body class="text-gray-800 pb-20 select-none overflow-x-hidden">
 
   <!-- DYNAMIC TAB CONTENT -->
   <main id="app-content" class="p-4 space-y-4 max-w-md mx-auto"></main>
 
   <!-- BOTTOM NAVIGATION BAR -->
   <nav class="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 flex justify-around py-2 max-w-md mx-auto shadow-lg z-50">
-    <button onclick="switchTab('home')" id="nav-home" class="flex flex-col items-center text-purple-600 text-xs font-medium">
+    <button onclick="switchTab('home')" id="nav-home" class="flex flex-col items-center text-purple-600 text-xs font-medium btn-interactive">
       <i class="fa-solid fa-house text-lg mb-1"></i>Home
     </button>
-    <button onclick="switchTab('earn')" id="nav-earn" class="flex flex-col items-center text-gray-400 text-xs font-medium">
+    <button onclick="switchTab('earn')" id="nav-earn" class="flex flex-col items-center text-gray-400 text-xs font-medium btn-interactive">
       <i class="fa-solid fa-list-check text-lg mb-1"></i>Earn
     </button>
-    <button onclick="switchTab('refer')" id="nav-refer" class="flex flex-col items-center text-gray-400 text-xs font-medium">
+    <button onclick="switchTab('refer')" id="nav-refer" class="flex flex-col items-center text-gray-400 text-xs font-medium btn-interactive">
       <i class="fa-solid fa-users text-lg mb-1"></i>Refer
     </button>
-    <button onclick="switchTab('withdraw')" id="nav-withdraw" class="flex flex-col items-center text-gray-400 text-xs font-medium">
+    <button onclick="switchTab('withdraw')" id="nav-withdraw" class="flex flex-col items-center text-gray-400 text-xs font-medium btn-interactive">
       <i class="fa-solid fa-wallet text-lg mb-1"></i>Withdraw
     </button>
-    <button onclick="switchTab('profile')" id="nav-profile" class="flex flex-col items-center text-gray-400 text-xs font-medium">
+    <button onclick="switchTab('profile')" id="nav-profile" class="flex flex-col items-center text-gray-400 text-xs font-medium btn-interactive">
       <i class="fa-solid fa-user text-lg mb-1"></i>Profile
     </button>
   </nav>
@@ -115,9 +145,9 @@
         const btn = document.getElementById(`nav-${t}`);
         if (btn) {
           if (t === tab) {
-            btn.className = 'flex flex-col items-center text-purple-600 text-xs font-medium';
+            btn.className = 'flex flex-col items-center text-purple-600 text-xs font-medium btn-interactive';
           } else {
-            btn.className = 'flex flex-col items-center text-gray-400 text-xs font-medium';
+            btn.className = 'flex flex-col items-center text-gray-400 text-xs font-medium btn-interactive';
           }
         }
       });
@@ -138,7 +168,7 @@
       const progressPercent = Math.round((completedTasks / totalTasks) * 100);
 
       return `
-        <div class="bg-gradient-custom rounded-3xl p-5 text-white shadow-lg">
+        <div class="bg-gradient-custom rounded-3xl p-5 text-white shadow-lg animate-slide-left">
           <div class="flex justify-between items-center mb-4">
             <div>
               <p class="text-xs text-white/80 font-medium">Welcome back 👋</p>
@@ -151,15 +181,15 @@
           <p class="text-xs text-white/90">📈 Total earned: ৳ ${userState.totalEarned.toFixed(2)}</p>
         </div>
 
-        <div class="grid grid-cols-2 gap-3">
-          <div onclick="switchTab('withdraw')" class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex items-center space-x-3 cursor-pointer">
+        <div class="grid grid-cols-2 gap-3 animate-slide-right">
+          <div onclick="switchTab('withdraw')" class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex items-center space-x-3 cursor-pointer btn-interactive">
             <div class="w-10 h-10 rounded-xl bg-purple-100 text-purple-600 flex items-center justify-center"><i class="fa-solid fa-wallet"></i></div>
             <div>
               <p class="font-bold text-sm">Withdraw</p>
               <p class="text-xs text-gray-400">Cash out</p>
             </div>
           </div>
-          <div onclick="switchTab('refer')" class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex items-center space-x-3 cursor-pointer">
+          <div onclick="switchTab('refer')" class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex items-center space-x-3 cursor-pointer btn-interactive">
             <div class="w-10 h-10 rounded-xl bg-red-100 text-red-500 flex items-center justify-center"><i class="fa-solid fa-user-plus"></i></div>
             <div>
               <p class="font-bold text-sm">Refer</p>
@@ -168,13 +198,13 @@
           </div>
         </div>
 
-        <div class="bg-gradient-custom rounded-2xl p-4 text-white shadow-sm">
+        <div class="bg-gradient-custom rounded-2xl p-4 text-white shadow-sm animate-slide-left">
           <div class="flex justify-between items-center mb-1">
             <div class="flex items-center space-x-2">
               <i class="fa-solid fa-circle-check"></i>
               <span class="font-bold text-sm">Daily Tasks</span>
             </div>
-            <button onclick="switchTab('earn')" class="bg-white/20 px-3 py-1 rounded-full text-xs font-semibold backdrop-blur-md">View →</button>
+            <button onclick="switchTab('earn')" class="bg-white/20 px-3 py-1 rounded-full text-xs font-semibold backdrop-blur-md btn-interactive">View →</button>
           </div>
           <p class="text-xs text-white/80 mb-3">${pendingTasks > 0 ? pendingTasks + ' tasks pending' : 'All tasks completed!'}</p>
           <div class="w-full bg-black/20 rounded-full h-2 overflow-hidden">
@@ -186,7 +216,7 @@
           </div>
         </div>
 
-        <div class="grid grid-cols-2 gap-3">
+        <div class="grid grid-cols-2 gap-3 animate-slide-right">
           <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100">
             <div class="w-8 h-8 rounded-full bg-purple-50 text-purple-600 flex items-center justify-center mb-2"><i class="fa-solid fa-users text-sm"></i></div>
             <p class="text-2xl font-bold text-gray-800">${userState.referrals}</p>
@@ -200,7 +230,7 @@
         </div>
 
         <!-- HOW TO EARN SECTION -->
-        <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 space-y-3">
+        <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 space-y-3 animate-slide-left">
           <div class="flex items-center space-x-2">
             <span class="text-xl">🎁</span>
             <h3 class="font-bold text-gray-800 text-base">How to earn</h3>
@@ -226,7 +256,7 @@
     // EARN TAB RENDER
     function renderEarn() {
       return `
-        <div class="bg-gradient-custom rounded-3xl p-5 text-white shadow-lg">
+        <div class="bg-gradient-custom rounded-3xl p-5 text-white shadow-lg animate-slide-left">
           <p class="text-xs text-white/80 uppercase tracking-wider">Daily Ads</p>
           <div class="flex justify-between items-baseline my-1">
             <h1 class="text-3xl font-extrabold">Earn</h1>
@@ -234,22 +264,22 @@
           </div>
         </div>
 
-        <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 space-y-3">
+        <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 space-y-3 animate-slide-right">
           <div class="flex justify-between text-sm font-bold">
             <span>Daily Progress</span>
             <span class="text-purple-600">${userState.adsWatched} / 10 watched</span>
           </div>
           <div class="w-full bg-gray-100 rounded-full h-3">
-            <div class="bg-purple-600 h-full rounded-full" style="width: ${(userState.adsWatched/10)*100}%"></div>
+            <div class="bg-purple-600 h-full rounded-full transition-all duration-300" style="width: ${(userState.adsWatched/10)*100}%"></div>
           </div>
-          <button onclick="watchAd()" class="w-full bg-purple-600 text-white font-bold py-3 rounded-xl shadow-md">
+          <button onclick="watchAd()" class="w-full bg-purple-600 text-white font-bold py-3 rounded-xl shadow-md btn-interactive">
             ▶ Watch
           </button>
         </div>
 
-        <h3 class="font-bold text-gray-700 pt-2 flex items-center gap-1.5"><i class="fa-solid fa-circle-check text-purple-600"></i> Tasks</h3>
+        <h3 class="font-bold text-gray-700 pt-2 flex items-center gap-1.5 animate-slide-left"><i class="fa-solid fa-circle-check text-purple-600"></i> Tasks</h3>
         
-        <div class="space-y-3">
+        <div class="space-y-3 animate-slide-left">
           ${renderTaskCard('welcome', 'bg-sky-100 text-sky-500')}
           ${renderTaskCard('proof', 'bg-blue-100 text-blue-500')}
           ${renderTaskCard('youtube', 'bg-red-100 text-red-600')}
@@ -263,9 +293,9 @@
       let actionBtn = '';
 
       if (task.status === 'join') {
-        actionBtn = `<button onclick="handleTaskAction('${key}')" class="bg-purple-50 text-purple-600 border border-purple-200 px-4 py-1.5 rounded-full text-xs font-bold flex items-center gap-1">Join <i class="fa-solid fa-arrow-up-right-from-square text-[10px]"></i></button>`;
+        actionBtn = `<button onclick="handleTaskAction('${key}')" class="bg-purple-50 text-purple-600 border border-purple-200 px-4 py-1.5 rounded-full text-xs font-bold flex items-center gap-1 btn-interactive">Join <i class="fa-solid fa-arrow-up-right-from-square text-[10px]"></i></button>`;
       } else if (task.status === 'claim') {
-        actionBtn = `<button onclick="handleTaskAction('${key}')" class="bg-green-600 text-white px-4 py-1.5 rounded-full text-xs font-bold shadow-md">Claim</button>`;
+        actionBtn = `<button onclick="handleTaskAction('${key}')" class="bg-green-600 text-white px-4 py-1.5 rounded-full text-xs font-bold shadow-md btn-interactive">Claim</button>`;
       } else {
         actionBtn = `<span class="bg-gray-100 text-gray-400 px-3 py-1.5 rounded-full text-xs font-bold flex items-center gap-1"><i class="fa-solid fa-check"></i> Done</span>`;
       }
@@ -336,7 +366,7 @@
       const top10Leaderboard = currentBoard.slice(0, 10);
 
       return `
-        <div class="bg-gradient-custom rounded-3xl p-6 text-white text-center shadow-lg relative overflow-hidden">
+        <div class="bg-gradient-custom rounded-3xl p-6 text-white text-center shadow-lg relative overflow-hidden animate-slide-left">
           <div class="w-12 h-12 bg-white/20 rounded-2xl mx-auto flex items-center justify-center text-2xl mb-2 backdrop-blur-sm">
             <i class="fa-solid fa-user-plus"></i>
           </div>
@@ -346,17 +376,17 @@
           <div class="mt-4 bg-white/20 p-1.5 pl-4 rounded-full flex items-center justify-between text-xs backdrop-blur-md border border-white/20 shadow-inner">
             <span class="truncate pr-2 font-mono text-[11px] text-white/90">${botReferralLink}</span>
             <div class="flex items-center space-x-1 flex-shrink-0">
-              <button onclick="copyReferLink('${botReferralLink}')" class="bg-white/30 hover:bg-white/40 text-white p-2 rounded-full transition">
+              <button onclick="copyReferLink('${botReferralLink}')" class="bg-white/30 hover:bg-white/40 text-white p-2 rounded-full transition btn-interactive">
                 <i class="fa-regular fa-copy text-sm"></i>
               </button>
-              <button onclick="shareReferLink('${botReferralLink}')" class="bg-white/30 hover:bg-white/40 text-white p-2 rounded-full transition">
+              <button onclick="shareReferLink('${botReferralLink}')" class="bg-white/30 hover:bg-white/40 text-white p-2 rounded-full transition btn-interactive">
                 <i class="fa-solid fa-share-nodes text-sm"></i>
               </button>
             </div>
           </div>
         </div>
 
-        <div class="grid grid-cols-2 gap-3">
+        <div class="grid grid-cols-2 gap-3 animate-slide-right">
           <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 text-center">
             <p class="text-xs text-gray-400 font-medium">Total Referrals</p>
             <p class="text-3xl font-extrabold text-gray-800 my-1">${userState.referrals}</p>
@@ -367,16 +397,16 @@
           </div>
         </div>
 
-        <div class="bg-white p-1 rounded-2xl shadow-sm border border-gray-100 flex space-x-1">
-          <button onclick="setReferTab('leaderboard')" class="flex-1 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${userState.activeReferTab === 'leaderboard' ? 'btn-gradient text-white shadow' : 'text-gray-500 hover:text-gray-700'}">
+        <div class="bg-white p-1 rounded-2xl shadow-sm border border-gray-100 flex space-x-1 animate-slide-left">
+          <button onclick="setReferTab('leaderboard')" class="flex-1 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all btn-interactive ${userState.activeReferTab === 'leaderboard' ? 'btn-gradient text-white shadow' : 'text-gray-500 hover:text-gray-700'}">
             <i class="fa-solid fa-trophy"></i> Leaderboard
           </button>
-          <button onclick="setReferTab('my_referrals')" class="flex-1 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${userState.activeReferTab === 'my_referrals' ? 'btn-gradient text-white shadow' : 'text-gray-500 hover:text-gray-700'}">
+          <button onclick="setReferTab('my_referrals')" class="flex-1 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all btn-interactive ${userState.activeReferTab === 'my_referrals' ? 'btn-gradient text-white shadow' : 'text-gray-500 hover:text-gray-700'}">
             <i class="fa-solid fa-users"></i> Your Referrals
           </button>
         </div>
 
-        <div>
+        <div class="animate-slide-right">
           ${userState.activeReferTab === 'leaderboard' ? renderLeaderboardView(top10Leaderboard) : renderMyReferralsView()}
         </div>
       `;
@@ -482,21 +512,29 @@
       const bkashBorder = userState.selectedMethod === 'bkash' ? 'border-2 border-pink-500 bg-pink-50 text-pink-600' : 'border border-gray-200 text-gray-600';
       const nagadBorder = userState.selectedMethod === 'nagad' ? 'border-2 border-orange-500 bg-orange-50 text-orange-600' : 'border border-gray-200 text-gray-600';
 
+      // Check if user balance is lower than 1020
+      const isEligible = userState.balance >= 1020;
+      
+      // Grayed-out style vs Active style matching user image
+      const buttonStyle = isEligible 
+        ? 'bg-gradient-custom text-white shadow-lg cursor-pointer btn-interactive' 
+        : 'bg-gradient-to-r from-purple-300 via-rose-300 to-orange-200 text-white/90 opacity-80 cursor-not-allowed';
+
       return `
-        <div class="bg-gradient-custom rounded-3xl p-5 text-white shadow-lg">
+        <div class="bg-gradient-custom rounded-3xl p-5 text-white shadow-lg animate-slide-left">
           <p class="text-xs text-white/80 uppercase">Available Balance</p>
           <h1 class="text-4xl font-extrabold my-1">৳ ${userState.balance.toFixed(2)}</h1>
           <p class="text-xs text-white/90">Min. withdrawal: ৳ 1,020.00</p>
         </div>
 
-        <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 space-y-4">
+        <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 space-y-4 animate-slide-right">
           <h3 class="font-bold text-gray-800 flex items-center gap-2"><i class="fa-solid fa-download text-purple-600"></i> Request Payout</h3>
           
           <div>
             <label class="text-xs text-gray-500 font-bold block mb-2">Payment Method</label>
             <div class="grid grid-cols-2 gap-3">
-              <button type="button" onclick="setMethod('bkash')" class="${bkashBorder} py-2.5 rounded-xl font-bold flex items-center justify-center gap-2">bKash</button>
-              <button type="button" onclick="setMethod('nagad')" class="${nagadBorder} py-2.5 rounded-xl font-bold flex items-center justify-center gap-2">Nagad</button>
+              <button type="button" onclick="setMethod('bkash')" class="${bkashBorder} py-2.5 rounded-xl font-bold flex items-center justify-center gap-2 btn-interactive">bKash</button>
+              <button type="button" onclick="setMethod('nagad')" class="${nagadBorder} py-2.5 rounded-xl font-bold flex items-center justify-center gap-2 btn-interactive">Nagad</button>
             </div>
           </div>
 
@@ -510,8 +548,8 @@
             <input type="number" id="withdraw-amount" value="1020" class="w-full bg-gray-50 border border-gray-200 p-3 rounded-xl text-sm outline-none focus:border-purple-600 font-bold">
           </div>
 
-          <button type="button" onclick="processWithdrawal()" class="w-full bg-gradient-custom text-white font-bold py-3.5 rounded-xl shadow-lg">
-            Request Payout
+          <button type="button" ${!isEligible ? 'disabled' : ''} onclick="processWithdrawal()" class="w-full font-bold py-3.5 rounded-xl ${buttonStyle}">
+            Request ৳ 1,020.00
           </button>
         </div>
       `;
@@ -529,7 +567,7 @@
       // Validation 1: Must start with 01 and be exactly 11 digits
       const mobileRegex = /^01\d{9}$/;
       if (!mobileRegex.test(accountInput)) {
-        return; // Silent block (no popup)
+        return;
       }
 
       // Validation 2: Amount must be >= 1020
@@ -542,14 +580,14 @@
         return;
       }
 
-      // Automatically transitions directly to Verification Page Screen without alert() popups
+      // Automatically transitions directly to Verification Page Screen
       openVerificationPage();
     }
 
     function openVerificationPage() {
       const app = document.getElementById('app-content');
       app.innerHTML = `
-        <div class="bg-white rounded-3xl p-5 shadow-lg border border-gray-100 space-y-4">
+        <div class="bg-white rounded-3xl p-5 shadow-lg border border-gray-100 space-y-4 animate-slide-left">
           <!-- Header -->
           <div class="flex justify-between items-center border-b pb-3">
             <div class="flex items-center space-x-2">
@@ -558,7 +596,7 @@
               </div>
               <h2 class="text-base font-extrabold text-gray-800">Verify Transaction</h2>
             </div>
-            <button onclick="switchTab('withdraw')" class="text-gray-400 hover:text-gray-600 text-lg font-bold">✕</button>
+            <button onclick="switchTab('withdraw')" class="text-gray-400 hover:text-gray-600 text-lg font-bold btn-interactive">✕</button>
           </div>
 
           <!-- Instructions Box -->
@@ -588,7 +626,7 @@
                 <p id="wallet-addr" class="text-xs font-mono text-gray-700 truncate">0xB7E1d919Eb1942DfaD8EB4AA76D1895FEFd06306</p>
               </div>
             </div>
-            <button onclick="copyWalletAddress()" class="p-2 text-purple-600 hover:text-purple-800 flex-shrink-0">
+            <button onclick="copyWalletAddress()" class="p-2 text-purple-600 hover:text-purple-800 flex-shrink-0 btn-interactive">
               <i class="fa-regular fa-copy text-lg"></i>
             </button>
           </div>
@@ -619,7 +657,7 @@
               Transaction Not Found
             </div>
 
-            <button onclick="submitVerification()" class="w-full bg-gradient-custom text-white font-bold py-3.5 rounded-2xl shadow-md flex items-center justify-center gap-2">
+            <button onclick="submitVerification()" class="w-full bg-gradient-custom text-white font-bold py-3.5 rounded-2xl shadow-md flex items-center justify-center gap-2 btn-interactive">
               <i class="fa-solid fa-shield-halved"></i> Submit Verification
             </button>
           </div>
@@ -654,7 +692,7 @@
 
       return `
         <!-- HEADER CARD -->
-        <div class="bg-profile-banner rounded-3xl p-6 text-white text-center shadow-md relative overflow-hidden flex flex-col items-center justify-center min-h-[220px]">
+        <div class="bg-profile-banner rounded-3xl p-6 text-white text-center shadow-md relative overflow-hidden flex flex-col items-center justify-center min-h-[220px] animate-slide-left">
           <div class="mb-3">
             ${renderAvatar(user.photo_url, user.first_name)}
           </div>
@@ -666,7 +704,7 @@
         </div>
 
         <!-- 3 STATS CARDS -->
-        <div class="grid grid-cols-3 gap-2.5">
+        <div class="grid grid-cols-3 gap-2.5 animate-slide-right">
           <!-- Balance -->
           <div class="bg-white p-3.5 rounded-2xl border border-gray-100 text-center shadow-sm flex flex-col items-center justify-center space-y-1">
             <div class="w-6 h-6 rounded-full bg-purple-100 flex items-center justify-center">
@@ -696,7 +734,7 @@
         </div>
 
         <!-- APP RULES CARD -->
-        <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 space-y-3">
+        <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 space-y-3 animate-slide-left">
           <div class="flex items-center space-x-2">
             <div class="w-7 h-7 rounded-full bg-purple-100 text-purple-600 flex items-center justify-center">
               <i class="fa-solid fa-shield-halved text-sm"></i>
