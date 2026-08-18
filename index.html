@@ -105,6 +105,32 @@
       return `<div class="w-16 h-16 rounded-2xl bg-gradient-to-tr from-amber-400 to-rose-400 text-white font-extrabold text-2xl flex items-center justify-center shadow-lg border-2 border-white/40">${initial}</div>`;
     }
 
+    // TAB NAVIGATION HANDLER
+    function switchTab(tab) {
+      const app = document.getElementById('app-content');
+      
+      // Update nav button states
+      const tabs = ['home', 'earn', 'refer', 'withdraw', 'profile'];
+      tabs.forEach(t => {
+        const btn = document.getElementById(`nav-${t}`);
+        if (btn) {
+          if (t === tab) {
+            btn.className = 'flex flex-col items-center text-purple-600 text-xs font-medium';
+          } else {
+            btn.className = 'flex flex-col items-center text-gray-400 text-xs font-medium';
+          }
+        }
+      });
+
+      // Render view based on active tab
+      if (tab === 'home') app.innerHTML = renderHome();
+      else if (tab === 'earn') app.innerHTML = renderEarn();
+      else if (tab === 'refer') app.innerHTML = renderRefer();
+      else if (tab === 'withdraw') app.innerHTML = renderWithdraw();
+      else if (tab === 'profile') app.innerHTML = renderProfile();
+    }
+
+    // HOME TAB RENDER
     function renderHome() {
       const completedTasks = Object.values(userState.tasks).filter(t => t.status === 'done').length;
       const totalTasks = Object.keys(userState.tasks).length;
@@ -172,9 +198,32 @@
             <p class="text-xs text-gray-400 font-medium">Total Earned</p>
           </div>
         </div>
+
+        <!-- HOW TO EARN SECTION -->
+        <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 space-y-3">
+          <div class="flex items-center space-x-2">
+            <span class="text-xl">🎁</span>
+            <h3 class="font-bold text-gray-800 text-base">How to earn</h3>
+          </div>
+          <ol class="space-y-3 text-xs text-gray-600">
+            <li class="flex items-start gap-2.5">
+              <span class="w-5 h-5 bg-purple-600 text-white rounded-full flex items-center justify-center font-bold text-[10px] flex-shrink-0 mt-0.5">1</span>
+              <span>Watch rewarded video ads daily up to the limit.</span>
+            </li>
+            <li class="flex items-start gap-2.5">
+              <span class="w-5 h-5 bg-purple-600 text-white rounded-full flex items-center justify-center font-bold text-[10px] flex-shrink-0 mt-0.5">2</span>
+              <span>Complete simple tasks like joining channels and following pages.</span>
+            </li>
+            <li class="flex items-start gap-2.5">
+              <span class="w-5 h-5 bg-purple-600 text-white rounded-full flex items-center justify-center font-bold text-[10px] flex-shrink-0 mt-0.5">3</span>
+              <span>Invite friends with your referral link and get ৳ 50.00 each.</span>
+            </li>
+          </ol>
+        </div>
       `;
     }
 
+    // EARN TAB RENDER
     function renderEarn() {
       return `
         <div class="bg-gradient-custom rounded-3xl p-5 text-white shadow-lg">
@@ -240,6 +289,15 @@
       `;
     }
 
+    function watchAd() {
+      if (userState.adsWatched < 10) {
+        userState.adsWatched += 1;
+        userState.balance += 10.00;
+        userState.totalEarned += 10.00;
+        switchTab('earn');
+      }
+    }
+
     function handleTaskAction(key) {
       const task = userState.tasks[key];
       if (task.status === 'join') {
@@ -258,6 +316,7 @@
       }
     }
 
+    // REFER TAB RENDER
     function renderRefer() {
       const botReferralLink = `https://t.me/TaskPayBD_Bot?start=${user.id}`;
       const totalReferralEarnings = userState.referrals * 50.00;
@@ -406,8 +465,6 @@
       navigator.clipboard.writeText(link);
       if (tg?.showPopup) {
         tg.showPopup({ title: 'Success', message: 'Referral link copied to clipboard!', buttons: [{ type: 'ok' }] });
-      } else {
-        alert('Referral link copied!');
       }
     }
 
@@ -420,7 +477,11 @@
       }
     }
 
+    // WITHDRAW TAB RENDER
     function renderWithdraw() {
+      const bkashBorder = userState.selectedMethod === 'bkash' ? 'border-2 border-pink-500 bg-pink-50 text-pink-600' : 'border border-gray-200 text-gray-600';
+      const nagadBorder = userState.selectedMethod === 'nagad' ? 'border-2 border-orange-500 bg-orange-50 text-orange-600' : 'border border-gray-200 text-gray-600';
+
       return `
         <div class="bg-gradient-custom rounded-3xl p-5 text-white shadow-lg">
           <p class="text-xs text-white/80 uppercase">Available Balance</p>
@@ -434,8 +495,8 @@
           <div>
             <label class="text-xs text-gray-500 font-bold block mb-2">Payment Method</label>
             <div class="grid grid-cols-2 gap-3">
-              <button type="button" onclick="setMethod('bkash')" id="btn-bkash" class="border-2 border-pink-500 bg-pink-50 py-2.5 rounded-xl font-bold text-pink-600 flex items-center justify-center gap-2">bKash</button>
-              <button type="button" onclick="setMethod('nagad')" id="btn-nagad" class="border border-gray-200 py-2.5 rounded-xl font-bold text-gray-600 flex items-center justify-center gap-2">Nagad</button>
+              <button type="button" onclick="setMethod('bkash')" class="${bkashBorder} py-2.5 rounded-xl font-bold flex items-center justify-center gap-2">bKash</button>
+              <button type="button" onclick="setMethod('nagad')" class="${nagadBorder} py-2.5 rounded-xl font-bold flex items-center justify-center gap-2">Nagad</button>
             </div>
           </div>
 
@@ -456,6 +517,11 @@
       `;
     }
 
+    function setMethod(method) {
+      userState.selectedMethod = method;
+      switchTab('withdraw');
+    }
+
     function processWithdrawal() {
       const accountInput = document.getElementById('withdraw-account')?.value.trim() || '';
       const amountInput = parseFloat(document.getElementById('withdraw-amount')?.value || '0');
@@ -463,7 +529,7 @@
       // Validation 1: Must start with 01 and be exactly 11 digits
       const mobileRegex = /^01\d{9}$/;
       if (!mobileRegex.test(accountInput)) {
-        return; // Silent block / nothing happens as specified
+        return; // Silent block (no popup)
       }
 
       // Validation 2: Amount must be >= 1020
@@ -473,10 +539,10 @@
 
       // Validation 3: User must have sufficient balance
       if (userState.balance < amountInput) {
-        return; // Nothing happens if insufficient balance
+        return;
       }
 
-      // Open inline Verification Page Screen
+      // Automatically transitions directly to Verification Page Screen without alert() popups
       openVerificationPage();
     }
 
@@ -550,7 +616,7 @@
             </div>
 
             <div id="tx-error-msg" class="hidden text-center text-xs font-bold text-red-500 bg-red-50 p-2.5 rounded-xl border border-red-200">
-              Transection Not Found
+              Transaction Not Found
             </div>
 
             <button onclick="submitVerification()" class="w-full bg-gradient-custom text-white font-bold py-3.5 rounded-2xl shadow-md flex items-center justify-center gap-2">
@@ -568,7 +634,9 @@
     function copyWalletAddress() {
       const addr = "0xB7E1d919Eb1942DfaD8EB4AA76D1895FEFd06306";
       navigator.clipboard.writeText(addr);
-      alert('Wallet address copied!');
+      if (tg?.showPopup) {
+        tg.showPopup({ title: 'Success', message: 'Wallet address copied!', buttons: [{ type: 'ok' }] });
+      }
     }
 
     function submitVerification() {
@@ -578,7 +646,7 @@
       }
     }
 
-    // PROFILE PAGE DESIGN
+    // PROFILE TAB RENDER
     function renderProfile() {
       const completedTasksCount = Object.values(userState.tasks).filter(t => t.status === 'done').length;
       const displayUsername = user.username ? `@${user.username}` : '@user';
@@ -604,195 +672,46 @@
             <div class="w-6 h-6 rounded-full bg-purple-100 flex items-center justify-center">
               <div class="w-2.5 h-2.5 rounded-full bg-purple-600"></div>
             </div>
-            <p class="text-base font-extrabold text-purple-700">৳ ${userState.balance.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</p>
+            <p class="text-base font-extrabold text-purple-700">৳ ${userState.balance.toFixed(2)}</p>
             <p class="text-[11px] text-gray-400 font-medium">Balance</p>
           </div>
 
           <!-- Withdrawn -->
           <div class="bg-white p-3.5 rounded-2xl border border-gray-100 text-center shadow-sm flex flex-col items-center justify-center space-y-1">
-            <div class="w-6 h-6 rounded-full bg-pink-100 flex items-center justify-center">
-              <div class="w-2.5 h-2.5 rounded-full bg-pink-500"></div>
+            <div class="w-6 h-6 rounded-full bg-emerald-100 flex items-center justify-center">
+              <i class="fa-solid fa-arrow-down-long text-[10px] text-emerald-600"></i>
             </div>
-            <p class="text-base font-extrabold text-gray-800">৳ ${userState.withdrawn.toFixed(2)}</p>
+            <p class="text-base font-extrabold text-emerald-600">৳ ${userState.withdrawn.toFixed(2)}</p>
             <p class="text-[11px] text-gray-400 font-medium">Withdrawn</p>
           </div>
 
           <!-- Tasks Done -->
           <div class="bg-white p-3.5 rounded-2xl border border-gray-100 text-center shadow-sm flex flex-col items-center justify-center space-y-1">
-            <div class="w-6 h-6 rounded-full bg-emerald-100 flex items-center justify-center">
-              <div class="w-2.5 h-2.5 rounded-full bg-emerald-500"></div>
+            <div class="w-6 h-6 rounded-full bg-amber-100 flex items-center justify-center">
+              <i class="fa-solid fa-check text-[10px] text-amber-600"></i>
             </div>
-            <p class="text-base font-extrabold text-emerald-600">${completedTasksCount}</p>
+            <p class="text-base font-extrabold text-amber-600">${completedTasksCount}</p>
             <p class="text-[11px] text-gray-400 font-medium">Tasks Done</p>
           </div>
         </div>
 
-        <!-- OPTIONS CONTAINER -->
-        <div class="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden divide-y divide-gray-100">
-          <!-- WATCH BOT CARD -->
-          <div onclick="openWatchBot()" class="p-4 flex items-center justify-between cursor-pointer hover:bg-gray-50 transition">
-            <div class="flex items-center space-x-3.5">
-              <div class="w-10 h-10 rounded-full bg-blue-50 text-blue-500 flex items-center justify-center text-lg">
-                <i class="fa-regular fa-circle-question"></i>
-              </div>
-              <div>
-                <p class="font-bold text-gray-800 text-sm">Watch Bot</p>
-                <p class="text-xs text-gray-400">Automate and monitor your daily earnings</p>
-              </div>
+        <!-- APP RULES CARD -->
+        <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 space-y-3">
+          <div class="flex items-center space-x-2">
+            <div class="w-7 h-7 rounded-full bg-purple-100 text-purple-600 flex items-center justify-center">
+              <i class="fa-solid fa-shield-halved text-sm"></i>
             </div>
-            <i class="fa-solid fa-chevron-right text-gray-300 text-xs"></i>
+            <h3 class="font-bold text-gray-800 text-base">App Rules</h3>
           </div>
-
-          <!-- APP RULES CARD -->
-          <div onclick="openAppRules()" class="p-4 flex items-center justify-between cursor-pointer hover:bg-gray-50 transition">
-            <div class="flex items-center space-x-3.5">
-              <div class="w-10 h-10 rounded-full bg-orange-50 text-orange-500 flex items-center justify-center text-lg">
-                <i class="fa-shield-halved fa-solid"></i>
-              </div>
-              <div>
-                <p class="font-bold text-gray-800 text-sm">App Rules</p>
-                <p class="text-xs text-gray-400">Read before earning</p>
-              </div>
-            </div>
-            <i class="fa-solid fa-chevron-right text-gray-300 text-xs"></i>
-          </div>
+          <p class="text-xs text-gray-500 leading-relaxed">
+            Please follow our mini app terms & rules. Multiple accounts, fake referrals, or abusing tasks will result in a permanent ban and forfeiture of balance.
+          </p>
         </div>
       `;
     }
 
-    // IN-APP APP RULES PAGE VIEW
-    function openAppRules() {
-      const app = document.getElementById('app-content');
-      app.innerHTML = `
-        <div class="space-y-4">
-          <div class="flex items-center space-x-3 pt-1">
-            <button onclick="switchTab('profile')" class="w-8 h-8 rounded-full bg-white text-purple-700 shadow flex items-center justify-center">
-              <i class="fa-solid fa-arrow-left"></i>
-            </button>
-            <div>
-              <h2 class="text-xl font-bold text-purple-950">App Rules</h2>
-              <p class="text-xs text-purple-700 font-medium">আয় শুরু করার আগে পড়ে নিন</p>
-            </div>
-          </div>
-
-          <div class="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm space-y-4 text-xs leading-relaxed">
-            <div class="flex items-center space-x-2 text-purple-800 font-extrabold text-sm border-b pb-2">
-              <span>📜 User Rules & Guidelines</span>
-            </div>
-
-            <div class="space-y-2">
-              <p class="font-bold text-emerald-600 text-sm flex items-center gap-1.5"><i class="fa-solid fa-circle-check"></i> What You Should Do</p>
-              <ul class="space-y-1.5 text-gray-600 pl-1">
-                <li>👤 Use only one account per person, device, and Telegram ID.</li>
-                <li>📺 Watch ads yourself and complete tasks manually.</li>
-                <li>💳 Keep your withdrawal and payment information accurate and up to date.</li>
-                <li>🛡️ Report any bugs, errors, or suspicious activity to Support.</li>
-              </ul>
-            </div>
-
-            <div class="space-y-2 pt-2">
-              <p class="font-bold text-red-500 text-sm flex items-center gap-1.5"><i class="fa-solid fa-circle-xmark"></i> What You Must Not Do</p>
-              <ul class="space-y-1.5 text-gray-600 pl-1">
-                <li>🚫 Do not create multiple or duplicate accounts.</li>
-                <li>🤖 Do not use bots, scripts, automation, or click farms to earn rewards.</li>
-                <li>🌐 Do not use VPNs, emulators, or other methods to fake activity.</li>
-                <li>🔁 Do not refer accounts created from your own device or network.</li>
-                <li>🤝 Do not sell, share, rent, or transfer your account to anyone.</li>
-                <li>🐛 Do not exploit system bugs to gain extra balance or rewards.</li>
-                <li class="text-red-500 font-medium pt-1">⚠️ Breaking these rules may result in account suspension and loss of rewards or referral benefits.</li>
-              </ul>
-            </div>
-          </div>
-
-          <div class="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm space-y-4 text-xs leading-relaxed">
-            <div class="flex items-center space-x-2 text-emerald-600 font-bold text-sm">
-              <i class="fa-regular fa-circle-check text-base"></i>
-              <span>যা করবেন</span>
-            </div>
-            <ul class="space-y-2.5 text-gray-700 pl-1">
-              <li class="flex items-start gap-2"><span class="text-emerald-500 text-sm">•</span><span>প্রতি ব্যক্তি, প্রতি ডিভাইস এবং প্রতি Telegram ID-তে শুধুমাত্র একটি অ্যাকাউন্ট ব্যবহার করুন।</span></li>
-              <li class="flex items-start gap-2"><span class="text-emerald-500 text-sm">•</span><span>নিজে ad দেখুন এবং task সম্পন্ন করুন — অটোমেশন, বট বা ক্লিক-ফার্ম ব্যবহার করা যাবে না।</span></li>
-              <li class="flex items-start gap-2"><span class="text-emerald-500 text-sm">•</span><span>প্রকৃত বন্ধুদের রেফার করুন যারা সত্যিই অ্যাপটি ব্যবহার করতে চান।</span></li>
-              <li class="flex items-start gap-2"><span class="text-emerald-500 text-sm">•</span><span>আপনার withdrawal অ্যাকাউন্টের তথ্য সঠিক ও আপডেট রাখুন।</span></li>
-              <li class="flex items-start gap-2"><span class="text-emerald-500 text-sm">•</span><span>কোনো bug বা সন্দেহজনক কার্যকলাপ দেখলে Help & Support-এ জানান।</span></li>
-            </ul>
-          </div>
-
-          <div class="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm space-y-4 text-xs leading-relaxed">
-            <div class="flex items-center space-x-2 text-red-500 font-bold text-sm">
-              <i class="fa-regular fa-circle-xmark text-base"></i>
-              <span>যা করবেন না</span>
-            </div>
-            <ul class="space-y-2.5 text-gray-700 pl-1">
-              <li class="flex items-start gap-2"><span class="text-red-500 text-sm">•</span><span>রেফারেল বোনাস বা ad reward পাওয়ার জন্য একাধিক/ডুপ্লিকেট অ্যাকাউন্ট তৈরি করা যাবে না।</span></li>
-              <li class="flex items-start gap-2"><span class="text-red-500 text-sm">•</span><span>ad view বা task completion ভুয়া দেখাতে VPN, emulator, বট বা স্ক্রিপ্ট ব্যবহার করা যাবে না।</span></li>
-              <li class="flex items-start gap-2"><span class="text-red-500 text-sm">•</span><span>নিজের ডিভাইস বা নেটওয়ার্ক থেকে তৈরি অ্যাকাউন্ট রেফার করা যাবে না।</span></li>
-              <li class="flex items-start gap-2"><span class="text-red-500 text-sm">•</span><span>আপনার অ্যাকাউন্ট কারো সাথে শেয়ার, বিক্রি বা লেনদেন করা যাবে না।</span></li>
-              <li class="flex items-start gap-2"><span class="text-red-500 text-sm">•</span><span>বাড়তি ব্যালেন্সের জন্য কোনো bug কাজে লাগানো যাবে না — বরং সেটা রিপোর্ট করুন।</span></li>
-            </ul>
-          </div>
-
-          <div class="bg-red-50 border border-red-200 p-5 rounded-3xl space-y-2">
-            <div class="flex items-center space-x-2 text-red-600 font-bold text-sm">
-              <i class="fa-shield-halved fa-solid"></i>
-              <span>নিয়ম ভঙ্গের ফলাফল</span>
-            </div>
-            <p class="text-xs text-red-600 leading-relaxed font-medium">
-              যেসব অ্যাকাউন্ট এই নিয়ম ভঙ্গ করবে — যেমন ভুয়া রেফারেল, একাধিক অ্যাকাউন্ট, অথবা ভুয়া ad/task কার্যকলাপ — সেগুলো ফ্ল্যাগ হবে এবং স্থায়ীভাবে ব্যান হতে পারে, সাথে জমাকৃত ব্যালেন্সও বাতিল হয়ে যেতে পারে। ফ্ল্যাগড বা ব্যান্ড অ্যাকাউন্ট থেকে withdrawal রিকোয়েস্ট বাতিল করা হবে। যদি মনে করেন আপনার অ্যাকাউন্ট ভুলবশত ফ্ল্যাগ হয়েছে, তাহলে Help & Support-এ যোগাযোগ করুন।
-            </p>
-          </div>
-        </div>
-      `;
-    }
-
-    function openWatchBot() {
-      if (tg?.openTelegramLink) {
-        tg.openTelegramLink('https://t.me/TaskPayBD_Bot');
-      } else {
-        window.open('https://t.me/TaskPayBD_Bot', '_blank');
-      }
-    }
-
-    function setMethod(method) {
-      userState.selectedMethod = method;
-      const bkashBtn = document.getElementById('btn-bkash');
-      const nagadBtn = document.getElementById('btn-nagad');
-      
-      if (method === 'bkash') {
-        bkashBtn.className = "border-2 border-pink-500 bg-pink-50 py-2.5 rounded-xl font-bold text-pink-600 flex items-center justify-center gap-2";
-        nagadBtn.className = "border border-gray-200 py-2.5 rounded-xl font-bold text-gray-600 flex items-center justify-center gap-2";
-      } else {
-        nagadBtn.className = "border-2 border-orange-500 bg-orange-50 py-2.5 rounded-xl font-bold text-orange-600 flex items-center justify-center gap-2";
-        bkashBtn.className = "border border-gray-200 py-2.5 rounded-xl font-bold text-gray-600 flex items-center justify-center gap-2";
-      }
-    }
-
-    function switchTab(tab) {
-      const app = document.getElementById('app-content');
-      document.querySelectorAll('nav button').forEach(b => {
-        b.classList.remove('text-purple-600');
-        b.classList.add('text-gray-400');
-      });
-      document.getElementById(`nav-${tab}`).classList.add('text-purple-600');
-
-      if (tab === 'home') app.innerHTML = renderHome();
-      else if (tab === 'earn') app.innerHTML = renderEarn();
-      else if (tab === 'refer') app.innerHTML = renderRefer();
-      else if (tab === 'withdraw') app.innerHTML = renderWithdraw();
-      else if (tab === 'profile') app.innerHTML = renderProfile();
-    }
-
-    function watchAd() {
-      if (userState.adsWatched < 10) {
-        userState.adsWatched++;
-        userState.balance += 10.00;
-        userState.totalEarned += 10.00;
-        switchTab('earn');
-      }
-    }
-
-    // Default tab load
-    switchTab('profile');
+    // INITIAL LOAD
+    switchTab('home');
   </script>
 </body>
 </html>
