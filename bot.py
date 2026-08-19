@@ -1,22 +1,48 @@
 import os
 import sqlite3
+from datetime import datetime
+from zoneinfo import ZoneInfo
+
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import Application, CommandHandler, ContextTypes, CallbackQueryHandler
+from telegram.ext import (
+    Application,
+    CommandHandler,
+    ContextTypes,
+    CallbackQueryHandler,
+    MessageHandler,
+    filters
+)
 
 BOT_TOKEN = os.environ.get("BOT_TOKEN")
-
 DATABASE = os.environ.get("DATABASE", "taskpay.db")
+
 WEBSITE_URL = os.environ.get(
     "WEBSITE_URL",
     "https://uzumaki-n1ruto.github.io/TaskPayBD1_Bot/"
 )
 
 REFERRAL_REWARD = 50.00
+DHAKA = ZoneInfo("Asia/Dhaka")
 
 OWNER_IDS = {
     7182450475,
     7897571474
 }
+
+DEFAULT_BUTTONS = [
+    {
+        "id": "website",
+        "text": "🌐 Open Website",
+        "url": WEBSITE_URL,
+        "enabled": True
+    },
+    {
+        "id": "referrals",
+        "text": "👥 My Referrals",
+        "callback": "my_referrals",
+        "enabled": True
+    }
+]
 
 
 def get_db():
@@ -73,9 +99,47 @@ def setup_database():
         FOREIGN KEY(telegram_id) REFERENCES users(telegram_id)
     );
 
+    CREATE TABLE IF NOT EXISTS bot_buttons (
+        id TEXT PRIMARY KEY,
+        text TEXT NOT NULL,
+        url TEXT DEFAULT '',
+        callback TEXT DEFAULT '',
+        enabled INTEGER NOT NULL DEFAULT 1,
+        position INTEGER NOT NULL DEFAULT 0
+    );
+
+    CREATE TABLE IF NOT EXISTS bot_settings (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS post_drafts (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        owner_id INTEGER NOT NULL,
+        content TEXT NOT NULL,
+        created_at TEXT NOT NULL
+    );
+
     CREATE INDEX IF NOT EXISTS idx_withdrawals_user
     ON withdrawals(telegram_id);
     """)
+
+    for position, button in enumerate(DEFAULT_BUTTONS):
+        conn.execute(
+            """
+            INSERT OR IGNORE INTO bot_buttons
+            (id, text, url, callback, enabled, position)
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (
+                button["id"],
+                button["text"],
+                button.get("url", ""),
+                button.get("callback", ""),
+                1 if button["enabled"] else 0,
+                position
+            )
+        )
 
     conn.commit()
     conn.close()
@@ -87,11 +151,11 @@ def is_owner(user_id):
 
 def owner_only(update):
     user = update.effective_user
+    return bool(user and is_owner(user.id))
 
-    if not user or not is_owner(user.id):
-        return False
 
-    return True
+def now():
+    return datetime.now(DHAKA)
 
 
 def get_user(user_id):
@@ -113,14 +177,10 @@ def ensure_user(user):
     if existing:
         return existing
 
-    from datetime import datetime
-    from zoneinfo import ZoneInfo
-
     conn = get_db()
 
-    joined_at = datetime.now(
-        ZoneInfo("Asia/Dhaka")
-    ).isoformat()
+    joined_at = now().isoformat()
+    ads_day = now().strftime("%Y-%m-%d")
 
     conn.execute(
         """
@@ -143,9 +203,7 @@ def ensure_user(user):
             user.username or "",
             "",
             joined_at,
-            datetime.now(
-                ZoneInfo("Asia/Dhaka")
-            ).strftime("%Y-%m-%d")
+            ads_day
         )
     )
 
@@ -161,25 +219,54 @@ def ensure_user(user):
     return created
 
 
+def get_buttons():
+    conn = get_db()
+
+    rows = conn.execute(
+        """
+        SELECT *
+        FROM bot_buttons
+        ORDER BY position ASC
+        """
+    ).fetchall()
+
+    conn.close()
+
+    return rows
+
+
+def build_main_keyboard():
+    rows = []
+
+    buttons = get_buttons()
+
+    for button in buttons:
+        if not button["enabled"]:
+            continue
+
+        if button["url"]:
+            rows.append([
+                InlineKeyboardButton(
+                    button["text"],
+                    url=button["url"]
+                )
+            ])
+
+        elif button["callback"]:
+            rows.append([
+                InlineKeyboardButton(
+                    button["text"],
+                    callback_data=button["callback"]
+                )
+            ])
+
+    return InlineKeyboardMarkup(rows)
+
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
 
     db_user = ensure_user(user)
-
-    keyboard = [
-        [
-            InlineKeyboardButton(
-                "🌐 Open Website",
-                url=WEBSITE_URL
-            )
-        ],
-        [
-            InlineKeyboardButton(
-                "👥 My Referrals",
-                callback_data="my_referrals"
-            )
-        ]
-    ]
 
     referral_link = (
         f"https://t.me/{context.bot.username}"
@@ -196,13 +283,12 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text(
         message,
-        reply_markup=InlineKeyboardMarkup(keyboard)
+        reply_markup=build_main_keyboard()
     )
 
 
 async def referrals(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
-
     db_user = ensure_user(user)
 
     conn = get_db()
@@ -215,7 +301,7 @@ async def referrals(update: Update, context: ContextTypes.DEFAULT_TYPE):
             r.created_at
         FROM referrals r
         JOIN users u
-            ON u.telegram_id = r.referred_id
+            ON u.telegram_id=r.referred_id
         WHERE r.referrer_id=?
         ORDER BY r.id DESC
         """,
@@ -260,7 +346,6 @@ async def referrals(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def balance(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
-
     db_user = ensure_user(user)
 
     await update.message.reply_text(
@@ -273,7 +358,6 @@ async def balance(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
-
     db_user = ensure_user(user)
 
     await update.message.reply_text(
@@ -294,19 +378,18 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "/referrals - View referrals\n"
         "/balance - View balance\n"
         "/stats - View statistics\n"
-        "/admin - Owner admin panel\n"
+        "/admin - Open owner panel\n"
+        "/user <id> - View user\n"
+        "/addbalance <id> <amount> - Add balance\n"
+        "/removebalance <id> <amount> - Remove balance\n"
+        "/block <id> - Block user\n"
+        "/unblock <id> - Unblock user\n"
         "/help - Show this menu"
     )
 
 
-async def admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not owner_only(update):
-        await update.message.reply_text(
-            "⛔ You don't have permission to use the admin panel."
-        )
-        return
-
-    keyboard = [
+def admin_keyboard():
+    return InlineKeyboardMarkup([
         [
             InlineKeyboardButton(
                 "📊 Statistics",
@@ -323,14 +406,26 @@ async def admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 callback_data="admin_users"
             ),
             InlineKeyboardButton(
-                "⏳ Pending",
-                callback_data="admin_pending"
+                "💰 Balance",
+                callback_data="admin_balance_help"
             )
         ],
         [
             InlineKeyboardButton(
-                "🔎 Search User",
-                callback_data="admin_search_help"
+                "🔘 Button Editor",
+                callback_data="button_editor"
+            )
+        ],
+        [
+            InlineKeyboardButton(
+                "📝 Post Editor",
+                callback_data="post_editor"
+            )
+        ],
+        [
+            InlineKeyboardButton(
+                "⏳ Pending Withdrawals",
+                callback_data="admin_pending"
             )
         ],
         [
@@ -339,20 +434,29 @@ async def admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 callback_data="admin_close"
             )
         ]
-    ]
+    ])
+
+
+async def admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not owner_only(update):
+        await update.message.reply_text(
+            "⛔ Owner access only."
+        )
+        return
 
     await update.message.reply_text(
-        "🔐 TaskPayBD Owner Panel\n\n"
-        "Welcome, Owner.\n"
-        "Choose an action below.",
-        reply_markup=InlineKeyboardMarkup(keyboard)
+        "🔐 TaskPayBD OWNER PANEL\n\n"
+        "You have full owner access.\n\n"
+        "👑 Owners:\n"
+        "• 7182450475\n"
+        "• 7897571474\n\n"
+        "Choose an action:",
+        reply_markup=admin_keyboard()
     )
 
 
 async def admin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
-
-    await query.answer()
 
     if not is_owner(query.from_user.id):
         await query.answer(
@@ -361,262 +465,47 @@ async def admin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
+    await query.answer()
+
     action = query.data
 
     if action == "admin_close":
         await query.edit_message_text(
-            "🔒 Admin panel closed."
+            "🔒 Owner panel closed."
+        )
+        return
+
+    if action == "admin_home":
+        await query.edit_message_text(
+            "🔐 TaskPayBD OWNER PANEL\n\n"
+            "You have full owner access.\n\n"
+            "Choose an action:",
+            reply_markup=admin_keyboard()
         )
         return
 
     if action == "admin_stats":
-        conn = get_db()
-
-        users = conn.execute(
-            "SELECT COUNT(*) AS count FROM users"
-        ).fetchone()["count"]
-
-        active_users = conn.execute(
-            "SELECT COUNT(*) AS count FROM users WHERE blocked=0"
-        ).fetchone()["count"]
-
-        blocked_users = conn.execute(
-            "SELECT COUNT(*) AS count FROM users WHERE blocked=1"
-        ).fetchone()["count"]
-
-        total_balance = conn.execute(
-            "SELECT COALESCE(SUM(balance),0) AS total FROM users"
-        ).fetchone()["total"]
-
-        total_earned = conn.execute(
-            "SELECT COALESCE(SUM(total_earned),0) AS total FROM users"
-        ).fetchone()["total"]
-
-        total_withdrawn = conn.execute(
-            "SELECT COALESCE(SUM(withdrawn),0) AS total FROM users"
-        ).fetchone()["total"]
-
-        referrals = conn.execute(
-            "SELECT COALESCE(SUM(referrals),0) AS total FROM users"
-        ).fetchone()["total"]
-
-        pending = conn.execute(
-            """
-            SELECT COUNT(*) AS count
-            FROM withdrawals
-            WHERE status='pending'
-            """
-        ).fetchone()["count"]
-
-        conn.close()
-
-        text = (
-            "📊 TaskPayBD Statistics\n\n"
-            f"👥 Total users: {users}\n"
-            f"🟢 Active users: {active_users}\n"
-            f"🔴 Blocked users: {blocked_users}\n\n"
-            f"💰 Total balance: ৳{total_balance:,.2f}\n"
-            f"📈 Total earned: ৳{total_earned:,.2f}\n"
-            f"💸 Total withdrawn: ৳{total_withdrawn:,.2f}\n"
-            f"👥 Total referrals: {referrals}\n\n"
-            f"⏳ Pending withdrawals: {pending}"
-        )
-
-        keyboard = [
-            [
-                InlineKeyboardButton(
-                    "🔙 Back",
-                    callback_data="admin_home"
-                )
-            ]
-        ]
-
-        await query.edit_message_text(
-            text,
-            reply_markup=InlineKeyboardMarkup(keyboard)
-        )
-
+        await show_admin_stats(query)
         return
 
-    if action in {
-        "admin_withdrawals",
-        "admin_pending"
-    }:
-        conn = get_db()
-
-        if action == "admin_pending":
-            rows = conn.execute(
-                """
-                SELECT
-                    w.*,
-                    u.first_name,
-                    u.username
-                FROM withdrawals w
-                JOIN users u
-                    ON u.telegram_id=w.telegram_id
-                WHERE w.status='pending'
-                ORDER BY w.id DESC
-                LIMIT 20
-                """
-            ).fetchall()
-        else:
-            rows = conn.execute(
-                """
-                SELECT
-                    w.*,
-                    u.first_name,
-                    u.username
-                FROM withdrawals w
-                JOIN users u
-                    ON u.telegram_id=w.telegram_id
-                ORDER BY w.id DESC
-                LIMIT 20
-                """
-            ).fetchall()
-
-        conn.close()
-
-        if not rows:
-            text = (
-                "💸 Withdrawals\n\n"
-                "No withdrawals found."
-            )
-
-            keyboard = [
-                [
-                    InlineKeyboardButton(
-                        "🔙 Back",
-                        callback_data="admin_home"
-                    )
-                ]
-            ]
-
-            await query.edit_message_text(
-                text,
-                reply_markup=InlineKeyboardMarkup(keyboard)
-            )
-
-            return
-
-        text = "💸 Withdrawals\n\n"
-        keyboard = []
-
-        for row in rows:
-            username = (
-                f"@{row['username']}"
-                if row["username"]
-                else "No username"
-            )
-
-            text += (
-                f"🆔 #{row['id']}\n"
-                f"👤 {row['first_name']} ({username})\n"
-                f"📱 {row['telegram_id']}\n"
-                f"💳 {row['method'].upper()}\n"
-                f"💰 {row['amount']:.2f} {row['currency']}\n"
-                f"💵 BDT value: ৳{row['bdt_value']:.2f}\n"
-                f"📌 Status: {row['status']}\n\n"
-            )
-
-            if row["status"] == "pending":
-                keyboard.append(
-                    [
-                        InlineKeyboardButton(
-                            f"✅ Pay #{row['id']}",
-                            callback_data=f"pay_{row['id']}"
-                        ),
-                        InlineKeyboardButton(
-                            f"❌ Reject #{row['id']}",
-                            callback_data=f"reject_{row['id']}"
-                        )
-                    ]
-                )
-
-        keyboard.append(
-            [
-                InlineKeyboardButton(
-                    "🔙 Back",
-                    callback_data="admin_home"
-                )
-            ]
-        )
-
-        await query.edit_message_text(
-            text[:4000],
-            reply_markup=InlineKeyboardMarkup(keyboard)
-        )
-
+    if action in {"admin_withdrawals", "admin_pending"}:
+        await show_withdrawals(query, action == "admin_pending")
         return
 
     if action == "admin_users":
-        conn = get_db()
-
-        rows = conn.execute(
-            """
-            SELECT
-                telegram_id,
-                first_name,
-                username,
-                balance,
-                referrals,
-                blocked
-            FROM users
-            ORDER BY telegram_id DESC
-            LIMIT 20
-            """
-        ).fetchall()
-
-        total = conn.execute(
-            "SELECT COUNT(*) AS count FROM users"
-        ).fetchone()["count"]
-
-        conn.close()
-
-        text = (
-            f"👥 Users\n\n"
-            f"Total users: {total}\n\n"
-        )
-
-        for row in rows:
-            status = "🔴 BLOCKED" if row["blocked"] else "🟢 ACTIVE"
-
-            username = (
-                f"@{row['username']}"
-                if row["username"]
-                else "No username"
-            )
-
-            text += (
-                f"👤 {row['first_name']} {username}\n"
-                f"🆔 {row['telegram_id']}\n"
-                f"💰 ৳{row['balance']:.2f}\n"
-                f"👥 {row['referrals']} referrals\n"
-                f"{status}\n\n"
-            )
-
-        keyboard = [
-            [
-                InlineKeyboardButton(
-                    "🔙 Back",
-                    callback_data="admin_home"
-                )
-            ]
-        ]
-
-        await query.edit_message_text(
-            text[:4000],
-            reply_markup=InlineKeyboardMarkup(keyboard)
-        )
-
+        await show_users(query)
         return
 
-    if action == "admin_search_help":
+    if action == "admin_balance_help":
         await query.edit_message_text(
-            "🔎 Search User\n\n"
-            "Use this command:\n\n"
-            "/user <telegram_id>\n\n"
-            "Example:\n"
-            "/user 123456789",
+            "💰 BALANCE MANAGEMENT\n\n"
+            "Use these commands:\n\n"
+            "/user <telegram_id>\n"
+            "View a user's account.\n\n"
+            "/addbalance <telegram_id> <amount>\n"
+            "Add money to a user's balance.\n\n"
+            "/removebalance <telegram_id> <amount>\n"
+            "Remove money from a user's balance.",
             reply_markup=InlineKeyboardMarkup([
                 [
                     InlineKeyboardButton(
@@ -626,74 +515,348 @@ async def admin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 ]
             ])
         )
-
         return
 
-    if action == "admin_home":
-        keyboard = [
-            [
-                InlineKeyboardButton(
-                    "📊 Statistics",
-                    callback_data="admin_stats"
-                ),
-                InlineKeyboardButton(
-                    "💸 Withdrawals",
-                    callback_data="admin_withdrawals"
-                )
-            ],
-            [
-                InlineKeyboardButton(
-                    "👥 Users",
-                    callback_data="admin_users"
-                ),
-                InlineKeyboardButton(
-                    "⏳ Pending",
-                    callback_data="admin_pending"
-                )
-            ],
-            [
-                InlineKeyboardButton(
-                    "🔎 Search User",
-                    callback_data="admin_search_help"
-                )
-            ],
-            [
-                InlineKeyboardButton(
-                    "❌ Close",
-                    callback_data="admin_close"
-                )
-            ]
-        ]
+    if action == "button_editor":
+        await button_editor(query)
+        return
 
+    if action.startswith("button_toggle_"):
+        button_id = action.replace("button_toggle_", "")
+        await toggle_button(query, button_id)
+        return
+
+    if action == "post_editor":
         await query.edit_message_text(
-            "🔐 TaskPayBD Owner Panel\n\n"
-            "Choose an action below.",
-            reply_markup=InlineKeyboardMarkup(keyboard)
+            "📝 POST EDITOR\n\n"
+            "Use these commands:\n\n"
+            "/post\n"
+            "Start writing a post.\n\n"
+            "After /post, send the message you want to publish.\n\n"
+            "The bot will ask where to send it.",
+            reply_markup=InlineKeyboardMarkup([
+                [
+                    InlineKeyboardButton(
+                        "🔙 Back",
+                        callback_data="admin_home"
+                    )
+                ]
+            ])
         )
-
         return
 
     if action.startswith("pay_"):
         withdrawal_id = int(action.split("_")[1])
-
         await process_withdrawal(
             query,
             withdrawal_id,
             "paid"
         )
-
         return
 
     if action.startswith("reject_"):
         withdrawal_id = int(action.split("_")[1])
-
         await process_withdrawal(
             query,
             withdrawal_id,
             "rejected"
         )
+        return
+
+
+async def show_admin_stats(query):
+    conn = get_db()
+
+    users = conn.execute(
+        "SELECT COUNT(*) AS count FROM users"
+    ).fetchone()["count"]
+
+    active = conn.execute(
+        "SELECT COUNT(*) AS count FROM users WHERE blocked=0"
+    ).fetchone()["count"]
+
+    blocked = conn.execute(
+        "SELECT COUNT(*) AS count FROM users WHERE blocked=1"
+    ).fetchone()["count"]
+
+    balance_total = conn.execute(
+        "SELECT COALESCE(SUM(balance),0) AS total FROM users"
+    ).fetchone()["total"]
+
+    earned = conn.execute(
+        "SELECT COALESCE(SUM(total_earned),0) AS total FROM users"
+    ).fetchone()["total"]
+
+    withdrawn = conn.execute(
+        "SELECT COALESCE(SUM(withdrawn),0) AS total FROM users"
+    ).fetchone()["total"]
+
+    referrals_total = conn.execute(
+        "SELECT COALESCE(SUM(referrals),0) AS total FROM users"
+    ).fetchone()["total"]
+
+    pending = conn.execute(
+        """
+        SELECT COUNT(*) AS count
+        FROM withdrawals
+        WHERE status='pending'
+        """
+    ).fetchone()["count"]
+
+    conn.close()
+
+    text = (
+        "📊 TASKPAYBD STATISTICS\n\n"
+        f"👥 Total users: {users}\n"
+        f"🟢 Active users: {active}\n"
+        f"🔴 Blocked users: {blocked}\n\n"
+        f"💰 Total balance: ৳{balance_total:,.2f}\n"
+        f"📈 Total earned: ৳{earned:,.2f}\n"
+        f"💸 Total withdrawn: ৳{withdrawn:,.2f}\n"
+        f"👥 Total referrals: {referrals_total}\n\n"
+        f"⏳ Pending withdrawals: {pending}"
+    )
+
+    await query.edit_message_text(
+        text,
+        reply_markup=InlineKeyboardMarkup([
+            [
+                InlineKeyboardButton(
+                    "🔙 Back",
+                    callback_data="admin_home"
+                )
+            ]
+        ])
+    )
+
+
+async def show_users(query):
+    conn = get_db()
+
+    rows = conn.execute(
+        """
+        SELECT
+            telegram_id,
+            first_name,
+            username,
+            balance,
+            referrals,
+            blocked
+        FROM users
+        ORDER BY telegram_id DESC
+        LIMIT 20
+        """
+    ).fetchall()
+
+    total = conn.execute(
+        "SELECT COUNT(*) AS count FROM users"
+    ).fetchone()["count"]
+
+    conn.close()
+
+    text = f"👥 USERS\n\nTotal users: {total}\n\n"
+
+    for row in rows:
+        username = (
+            f"@{row['username']}"
+            if row["username"]
+            else "No username"
+        )
+
+        status = (
+            "🔴 BLOCKED"
+            if row["blocked"]
+            else "🟢 ACTIVE"
+        )
+
+        text += (
+            f"👤 {row['first_name']} {username}\n"
+            f"🆔 {row['telegram_id']}\n"
+            f"💰 ৳{row['balance']:.2f}\n"
+            f"👥 {row['referrals']} referrals\n"
+            f"{status}\n\n"
+        )
+
+    await query.edit_message_text(
+        text[:4000],
+        reply_markup=InlineKeyboardMarkup([
+            [
+                InlineKeyboardButton(
+                    "🔙 Back",
+                    callback_data="admin_home"
+                )
+            ]
+        ])
+    )
+
+
+async def show_withdrawals(query, pending_only=False):
+    conn = get_db()
+
+    if pending_only:
+        rows = conn.execute(
+            """
+            SELECT
+                w.*,
+                u.first_name,
+                u.username
+            FROM withdrawals w
+            JOIN users u
+                ON u.telegram_id=w.telegram_id
+            WHERE w.status='pending'
+            ORDER BY w.id DESC
+            LIMIT 20
+            """
+        ).fetchall()
+    else:
+        rows = conn.execute(
+            """
+            SELECT
+                w.*,
+                u.first_name,
+                u.username
+            FROM withdrawals w
+            JOIN users u
+                ON u.telegram_id=w.telegram_id
+            ORDER BY w.id DESC
+            LIMIT 20
+            """
+        ).fetchall()
+
+    conn.close()
+
+    if not rows:
+        await query.edit_message_text(
+            "💸 WITHDRAWALS\n\n"
+            "No withdrawals found.",
+            reply_markup=InlineKeyboardMarkup([
+                [
+                    InlineKeyboardButton(
+                        "🔙 Back",
+                        callback_data="admin_home"
+                    )
+                ]
+            ])
+        )
+        return
+
+    text = "💸 WITHDRAWALS\n\n"
+    keyboard = []
+
+    for row in rows:
+        username = (
+            f"@{row['username']}"
+            if row["username"]
+            else "No username"
+        )
+
+        text += (
+            f"🆔 #{row['id']}\n"
+            f"👤 {row['first_name']} ({username})\n"
+            f"📱 {row['telegram_id']}\n"
+            f"💳 {row['method'].upper()}\n"
+            f"💰 {row['amount']:.2f} {row['currency']}\n"
+            f"💵 BDT: ৳{row['bdt_value']:.2f}\n"
+            f"📌 {row['status'].upper()}\n\n"
+        )
+
+        if row["status"] == "pending":
+            keyboard.append([
+                InlineKeyboardButton(
+                    f"✅ Pay #{row['id']}",
+                    callback_data=f"pay_{row['id']}"
+                ),
+                InlineKeyboardButton(
+                    f"❌ Reject #{row['id']}",
+                    callback_data=f"reject_{row['id']}"
+                )
+            ])
+
+    keyboard.append([
+        InlineKeyboardButton(
+            "🔙 Back",
+            callback_data="admin_home"
+        )
+    ])
+
+    await query.edit_message_text(
+        text[:4000],
+        reply_markup=InlineKeyboardMarkup(keyboard)
+    )
+
+
+async def button_editor(query):
+    buttons = get_buttons()
+
+    text = (
+        "🔘 BUTTON EDITOR\n\n"
+        "Tap a button to enable/disable it.\n\n"
+    )
+
+    keyboard = []
+
+    for button in buttons:
+        status = "🟢 ON" if button["enabled"] else "🔴 OFF"
+
+        text += (
+            f"{button['text']}\n"
+            f"ID: {button['id']}\n"
+            f"Status: {status}\n\n"
+        )
+
+        keyboard.append([
+            InlineKeyboardButton(
+                f"{status} {button['text']}",
+                callback_data=f"button_toggle_{button['id']}"
+            )
+        ])
+
+    keyboard.append([
+        InlineKeyboardButton(
+            "🔙 Back",
+            callback_data="admin_home"
+        )
+    ])
+
+    await query.edit_message_text(
+        text,
+        reply_markup=InlineKeyboardMarkup(keyboard)
+    )
+
+
+async def toggle_button(query, button_id):
+    conn = get_db()
+
+    button = conn.execute(
+        "SELECT * FROM bot_buttons WHERE id=?",
+        (button_id,)
+    ).fetchone()
+
+    if not button:
+        conn.close()
+
+        await query.answer(
+            "Button not found.",
+            show_alert=True
+        )
 
         return
+
+    new_status = 0 if button["enabled"] else 1
+
+    conn.execute(
+        "UPDATE bot_buttons SET enabled=? WHERE id=?",
+        (new_status, button_id)
+    )
+
+    conn.commit()
+    conn.close()
+
+    await query.answer(
+        "Button updated."
+    )
+
+    await button_editor(query)
 
 
 async def process_withdrawal(query, withdrawal_id, status):
@@ -722,7 +885,7 @@ async def process_withdrawal(query, withdrawal_id, status):
         conn.close()
 
         await query.answer(
-            "This withdrawal was already processed.",
+            "Already processed.",
             show_alert=True
         )
 
@@ -743,12 +906,7 @@ async def process_withdrawal(query, withdrawal_id, status):
             )
         )
 
-    from datetime import datetime
-    from zoneinfo import ZoneInfo
-
-    processed_at = datetime.now(
-        ZoneInfo("Asia/Dhaka")
-    ).isoformat()
+    processed_at = now().isoformat()
 
     conn.execute(
         """
@@ -770,7 +928,7 @@ async def process_withdrawal(query, withdrawal_id, status):
     emoji = "✅" if status == "paid" else "❌"
 
     await query.answer(
-        f"{emoji} Withdrawal #{withdrawal_id} marked as {status}.",
+        f"{emoji} Withdrawal #{withdrawal_id} {status}.",
         show_alert=True
     )
 
@@ -804,7 +962,7 @@ async def user_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
-    if not context.args:
+    if len(context.args) != 1:
         await update.message.reply_text(
             "Usage:\n/user <telegram_id>"
         )
@@ -826,10 +984,14 @@ async def user_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
-    status = "🔴 BLOCKED" if user["blocked"] else "🟢 ACTIVE"
+    status = (
+        "🔴 BLOCKED"
+        if user["blocked"]
+        else "🟢 ACTIVE"
+    )
 
     await update.message.reply_text(
-        f"👤 User Information\n\n"
+        f"👤 USER INFORMATION\n\n"
         f"Name: {user['first_name']} {user['last_name']}\n"
         f"Username: @{user['username'] if user['username'] else 'none'}\n"
         f"Telegram ID: {user['telegram_id']}\n\n"
@@ -851,8 +1013,8 @@ async def add_balance(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if len(context.args) != 2:
         await update.message.reply_text(
-            "Usage:\n/addbalance <telegram_id> <amount>\n\n"
-            "Example:\n/addbalance 7182450475 100"
+            "Usage:\n"
+            "/addbalance <telegram_id> <amount>"
         )
         return
 
@@ -901,7 +1063,9 @@ async def add_balance(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
     conn.commit()
+
     new_balance = user["balance"] + amount
+
     conn.close()
 
     await update.message.reply_text(
@@ -921,7 +1085,8 @@ async def remove_balance(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if len(context.args) != 2:
         await update.message.reply_text(
-            "Usage:\n/removebalance <telegram_id> <amount>"
+            "Usage:\n"
+            "/removebalance <telegram_id> <amount>"
         )
         return
 
@@ -976,7 +1141,9 @@ async def remove_balance(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
     conn.commit()
+
     new_balance = user["balance"] - amount
+
     conn.close()
 
     await update.message.reply_text(
@@ -1100,7 +1267,6 @@ async def my_referrals_callback(
     await query.answer()
 
     user = query.from_user
-
     db_user = ensure_user(user)
 
     conn = get_db()
@@ -1146,6 +1312,89 @@ async def my_referrals_callback(
             text += f"{index}. {name}\n"
 
     await query.message.reply_text(text)
+
+
+async def post_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not owner_only(update):
+        await update.message.reply_text(
+            "⛔ Owner access only."
+        )
+        return
+
+    context.user_data["waiting_for_post"] = True
+
+    await update.message.reply_text(
+        "📝 POST EDITOR\n\n"
+        "Send me the exact message you want to post.\n\n"
+        "You can use normal Telegram formatting.\n\n"
+        "Send /cancel to cancel."
+    )
+
+
+async def cancel_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if context.user_data.get("waiting_for_post"):
+        context.user_data.pop("waiting_for_post", None)
+
+        await update.message.reply_text(
+            "❌ Post cancelled."
+        )
+        return
+
+    await update.message.reply_text(
+        "Nothing to cancel."
+    )
+
+
+async def post_message_handler(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE
+):
+    if not owner_only(update):
+        return
+
+    if not context.user_data.get("waiting_for_post"):
+        return
+
+    context.user_data.pop("waiting_for_post", None)
+
+    text = update.message.text
+
+    if not text:
+        await update.message.reply_text(
+            "❌ Only text posts are supported right now."
+        )
+        return
+
+    conn = get_db()
+
+    conn.execute(
+        """
+        INSERT INTO post_drafts
+        (owner_id, content, created_at)
+        VALUES (?, ?, ?)
+        """,
+        (
+            update.effective_user.id,
+            text,
+            now().isoformat()
+        )
+    )
+
+    conn.commit()
+
+    draft_id = conn.execute(
+        "SELECT last_insert_rowid() AS id"
+    ).fetchone()["id"]
+
+    conn.close()
+
+    await update.message.reply_text(
+        f"📝 Post saved as draft #{draft_id}.\n\n"
+        f"Content:\n{text}\n\n"
+        f"⚠️ I have not published it anywhere yet.\n\n"
+        f"To publish posts to a channel, the channel/chat ID "
+        f"needs to be configured."
+    )
 
 
 def main():
@@ -1207,6 +1456,14 @@ def main():
     )
 
     application.add_handler(
+        CommandHandler("post", post_command)
+    )
+
+    application.add_handler(
+        CommandHandler("cancel", cancel_command)
+    )
+
+    application.add_handler(
         CallbackQueryHandler(
             my_referrals_callback,
             pattern="^my_referrals$"
@@ -1216,13 +1473,21 @@ def main():
     application.add_handler(
         CallbackQueryHandler(
             admin_callback,
-            pattern=r"^(admin_|pay_|reject_)"
+            pattern=r"^(admin_|button_|pay_|reject_)"
+        )
+    )
+
+    application.add_handler(
+        MessageHandler(
+            filters.TEXT & ~filters.COMMAND,
+            post_message_handler
         )
     )
 
     print("TaskPayBD bot is running...")
     print(f"Website: {WEBSITE_URL}")
-    print(f"Owners: {OWNER_IDS}")
+    print("OWNER 1: 7182450475")
+    print("OWNER 2: 7897571474")
 
     application.run_polling()
 
