@@ -76,7 +76,6 @@
     if (tg) tg.expand();
 
     const BDT_PER_USD = 122.21;
-    const STORAGE_KEY = 'taskpay_user_state_v1';
 
     function fmtCurr(bdtAmount) {
       const usdAmount = (bdtAmount / BDT_PER_USD).toFixed(2);
@@ -103,6 +102,9 @@
       photo_url: tgUser?.photo_url || ''
     };
 
+    // Unique per-user storage key so data is private to each user/device
+    const USER_STORAGE_KEY = `taskpay_user_state_${user.id}`;
+
     const availableAdLinks = [
       "https://youtube.com/shorts/QKQLl0VQw6I?si=oWzwF_JFcu9b96Gl",
       "https://youtube.com/shorts/RtUEhRlqcF4?si=QQaPldQUd7bAQvRu",
@@ -116,7 +118,7 @@
       "https://youtube.com/shorts/XUXIstcmVuw?si=sEjXEGGMsIKzQ4iq"
     ];
 
-    // Default Initial User State
+    // Default User State Template
     const defaultState = {
       balance: 0.00,
       withdrawn: 0.00,
@@ -138,20 +140,20 @@
       }
     };
 
-    // Load from LocalStorage or Use Defaults
+    // Load state specifically for this individual Telegram ID
     let userState = loadState();
 
     function saveState() {
       try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(userState));
+        localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(userState));
       } catch (e) {
-        console.error("Failed to save state to localStorage", e);
+        console.error("Failed to save user state", e);
       }
     }
 
     function loadState() {
       try {
-        const saved = localStorage.getItem(STORAGE_KEY);
+        const saved = localStorage.getItem(USER_STORAGE_KEY);
         if (saved) {
           const parsed = JSON.parse(saved);
           return { ...defaultState, ...parsed, isWatchingAd: false, adTimer: 25 };
@@ -160,6 +162,34 @@
         console.error("Failed to load state", e);
       }
       return defaultState;
+    }
+
+    // Process Referral Link Parameter on startup
+    function checkReferral() {
+      const startParam = tg?.initDataUnsafe?.start_param || new URLSearchParams(window.location.search).get('start');
+      if (startParam && startParam !== user.id) {
+        const refTrackKey = `referred_by_${user.id}`;
+        if (!localStorage.getItem(refTrackKey)) {
+          localStorage.setItem(refTrackKey, startParam);
+
+          // Update referrer's storage if on same device or local test session
+          const referrerKey = `taskpay_user_state_${startParam}`;
+          const savedReferrer = localStorage.getItem(referrerKey);
+          if (savedReferrer) {
+            try {
+              const refState = JSON.parse(savedReferrer);
+              refState.referrals += 1;
+              refState.balance += 50.00;
+              refState.totalEarned += 50.00;
+              refState.myReferralsList.unshift({
+                name: user.first_name,
+                date: getJoinedDateFormatted()
+              });
+              localStorage.setItem(referrerKey, JSON.stringify(refState));
+            } catch (e) { console.error(e); }
+          }
+        }
+      }
     }
 
     const defaultLeaderboard = [
@@ -457,7 +487,6 @@
     }
 
     function renderRefer() {
-      // Direct referral link targeting your bot
       const botReferralLink = `https://t.me/TaskPayBD1_Bot?start=${user.id}`;
       const totalReferralEarnings = userState.referrals * 50.00;
 
@@ -632,11 +661,11 @@
       const num = document.getElementById('withdraw-account')?.value || '';
 
       if (!num) {
-        alert('Please enter account number.');
+        alert('Please enter your account number or address.');
         return;
       }
       if (isNaN(amount) || amount < 500) {
-        alert('Minimum withdrawal is ৳ 500.00');
+        alert('Minimum withdrawal amount is ৳ 500.00');
         return;
       }
       if (amount > userState.balance) {
@@ -653,8 +682,6 @@
     }
 
     function renderWithdraw() {
-      const minWithdrawBDT = 500;
-
       return `
         <div class="bg-gradient-custom rounded-3xl p-6 text-white shadow-lg animate-slide-left">
           <p class="text-xs text-white/80 uppercase tracking-wider font-semibold">Available Balance</p>
@@ -665,28 +692,59 @@
         <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 space-y-4 animate-slide-right">
           <h3 class="font-bold text-gray-800 text-sm">Select Method</h3>
           <div class="grid grid-cols-3 gap-2">
-            <button onclick="selectWithdrawMethod('bkash')" class="p-3 rounded-xl border flex flex-col items-center gap-1.5 btn-interactive ${userState.selectedMethod === 'bkash' ? 'border-purple-600 bg-purple-50 text-purple-700 font-bold' : 'border-gray-200 text-gray-600'}">
-              <span class="text-xs">bKash</span>
+            <!-- bKash Button with SVG Logo -->
+            <button onclick="selectWithdrawMethod('bkash')" class="p-3 rounded-xl border flex flex-col items-center justify-center gap-1.5 btn-interactive ${userState.selectedMethod === 'bkash' ? 'border-pink-600 bg-pink-50 text-pink-700 font-bold' : 'border-gray-200 text-gray-600'}">
+              <svg class="w-8 h-8" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <rect width="200" height="200" rx="30" fill="#E2136E"/>
+                <path d="M110 40L60 90L110 140L160 90L110 40Z" fill="white"/>
+                <path d="M60 90L40 110L60 130L80 110L60 90Z" fill="white"/>
+              </svg>
+              <span class="text-xs font-bold">bKash</span>
             </button>
-            <button onclick="selectWithdrawMethod('nagad')" class="p-3 rounded-xl border flex flex-col items-center gap-1.5 btn-interactive ${userState.selectedMethod === 'nagad' ? 'border-purple-600 bg-purple-50 text-purple-700 font-bold' : 'border-gray-200 text-gray-600'}">
-              <span class="text-xs">Nagad</span>
+
+            <!-- Nagad Button with SVG Logo -->
+            <button onclick="selectWithdrawMethod('nagad')" class="p-3 rounded-xl border flex flex-col items-center justify-center gap-1.5 btn-interactive ${userState.selectedMethod === 'nagad' ? 'border-orange-600 bg-orange-50 text-orange-700 font-bold' : 'border-gray-200 text-gray-600'}">
+              <svg class="w-8 h-8" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <rect width="200" height="200" rx="30" fill="#F7921E"/>
+                <circle cx="100" cy="100" r="45" fill="white"/>
+                <path d="M100 65C80.67 65 65 80.67 65 100C65 119.33 80.67 135 100 135C119.33 135 135 119.33 135 100" stroke="#F7921E" stroke-width="12" stroke-linecap="round"/>
+              </svg>
+              <span class="text-xs font-bold">Nagad</span>
             </button>
-            <button onclick="selectWithdrawMethod('usdt')" class="p-3 rounded-xl border flex flex-col items-center gap-1.5 btn-interactive ${userState.selectedMethod === 'usdt' ? 'border-purple-600 bg-purple-50 text-purple-700 font-bold' : 'border-gray-200 text-gray-600'}">
-              <span class="text-xs">USDT</span>
+
+            <!-- USDT Button with Icon -->
+            <button onclick="selectWithdrawMethod('usdt')" class="p-3 rounded-xl border flex flex-col items-center justify-center gap-1.5 btn-interactive ${userState.selectedMethod === 'usdt' ? 'border-emerald-600 bg-emerald-50 text-emerald-700 font-bold' : 'border-gray-200 text-gray-600'}">
+              <div class="w-8 h-8 rounded-full bg-emerald-500 text-white flex items-center justify-center text-sm font-bold shadow-xs">₮</div>
+              <span class="text-xs font-bold">USDT</span>
             </button>
           </div>
 
           <div class="space-y-3 pt-2">
             <div>
-              <label class="text-xs text-gray-500 font-bold block mb-1">Account / Wallet Address</label>
-              <input id="withdraw-account" type="text" placeholder="Enter number or address" class="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 text-sm outline-none focus:border-purple-600 transition" />
+              <label class="text-xs text-gray-500 font-bold block mb-1">Account Number / Wallet Address</label>
+              <input id="withdraw-account" type="text" placeholder="Enter number or TRC20 address" class="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 text-sm outline-none focus:border-purple-600 transition" />
             </div>
             <div>
               <label class="text-xs text-gray-500 font-bold block mb-1">Amount (BDT)</label>
-              <input id="withdraw-amount" type="number" placeholder="Min ৳ 500" class="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 text-sm outline-none focus:border-purple-600 transition" />
+              <input id="withdraw-amount" type="number" placeholder="Min ৳ 500.00" class="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 text-sm outline-none focus:border-purple-600 transition" />
             </div>
             <button onclick="processWithdraw()" class="w-full btn-gradient text-white font-bold py-3.5 rounded-xl shadow-md btn-interactive">Request Cashout</button>
           </div>
+        </div>
+
+        <!-- RE-ADDED WITHDRAWAL REQUIREMENTS & RULES SECTION -->
+        <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 space-y-3 animate-slide-left">
+          <div class="flex items-center space-x-2 text-purple-600">
+            <i class="fa-solid fa-triangle-exclamation text-base"></i>
+            <h3 class="font-bold text-gray-800 text-sm">Withdrawal Requirements & Rules</h3>
+          </div>
+          <ul class="space-y-2 text-xs text-gray-600 list-disc pl-4 leading-relaxed">
+            <li>Minimum withdrawal limit is <b>৳ 500.00 ($4.09)</b>.</li>
+            <li>Cashout requests are manually reviewed and processed within <b>24 to 48 hours</b>.</li>
+            <li>Ensure your bKash or Nagad account is active and configured to receive personal cash-in/transfers.</li>
+            <li>Multiple accounts or self-referral attempts will result in an immediate and permanent account suspension.</li>
+            <li>Join our official <a href="https://t.me/TaskPayBDOfficial" target="_blank" class="text-purple-600 underline font-semibold">Payment Proof Channel</a> to see live payout confirmations.</li>
+          </ul>
         </div>
       `;
     }
@@ -726,6 +784,7 @@
 
     // Initialize application on page load
     window.addEventListener('DOMContentLoaded', () => {
+      checkReferral();
       switchTab(userState.currentTab || 'home');
     });
   </script>
