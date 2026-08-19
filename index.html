@@ -1,0 +1,847 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Bangla Task Hub</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f7f7fb; }
+    .bg-gradient-custom { background: linear-gradient(135deg, #8A2387 0%, #E94057 50%, #F27121 100%); }
+    .btn-gradient { background: linear-gradient(135deg, #8A2387 0%, #E94057 100%); }
+    .bg-profile-banner { background: linear-gradient(135deg, #8E2DE2 0%, #F000FF 50%, #FF512F 100%); }
+
+    /* Button hover & touch scale transition */
+    .btn-interactive {
+      transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.2s ease;
+    }
+    .btn-interactive:hover {
+      transform: scale(1.02);
+    }
+    .btn-interactive:active {
+      transform: scale(0.95);
+    }
+
+    /* Spring / Overshoot Animations */
+    @keyframes slideInOvershootLeft {
+      0% { opacity: 0; transform: translateX(-60px); }
+      70% { transform: translateX(12px); }
+      100% { opacity: 1; transform: translateX(0); }
+    }
+    @keyframes slideInOvershootRight {
+      0% { opacity: 0; transform: translateX(60px); }
+      70% { transform: translateX(-12px); }
+      100% { opacity: 1; transform: translateX(0); }
+    }
+
+    .animate-slide-left {
+      animation: slideInOvershootLeft 0.5s cubic-bezier(0.25, 1, 0.5, 1) forwards;
+    }
+    .animate-slide-right {
+      animation: slideInOvershootRight 0.5s cubic-bezier(0.25, 1, 0.5, 1) forwards;
+    }
+  </style>
+</head>
+<body class="text-gray-800 pb-20 select-none overflow-x-hidden">
+
+  <!-- DYNAMIC TAB CONTENT -->
+  <main id="app-content" class="p-4 space-y-4 max-w-md mx-auto"></main>
+
+  <!-- OVERLAY / MODAL CONTAINER (for Ads & Rules) -->
+  <div id="modal-container"></div>
+
+  <!-- BOTTOM NAVIGATION BAR -->
+  <nav class="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 flex justify-around py-2 max-w-md mx-auto shadow-lg z-40">
+    <button onclick="switchTab('home')" id="nav-home" class="flex flex-col items-center text-purple-600 text-xs font-medium btn-interactive">
+      <i class="fa-solid fa-house text-lg mb-1"></i>Home
+    </button>
+    <button onclick="switchTab('earn')" id="nav-earn" class="flex flex-col items-center text-gray-400 text-xs font-medium btn-interactive">
+      <i class="fa-solid fa-list-check text-lg mb-1"></i>Earn
+    </button>
+    <button onclick="switchTab('refer')" id="nav-refer" class="flex flex-col items-center text-gray-400 text-xs font-medium btn-interactive">
+      <i class="fa-solid fa-users text-lg mb-1"></i>Refer
+    </button>
+    <button onclick="switchTab('withdraw')" id="nav-withdraw" class="flex flex-col items-center text-gray-400 text-xs font-medium btn-interactive">
+      <i class="fa-solid fa-wallet text-lg mb-1"></i>Withdraw
+    </button>
+    <button onclick="switchTab('profile')" id="nav-profile" class="flex flex-col items-center text-gray-400 text-xs font-medium btn-interactive">
+      <i class="fa-solid fa-user text-lg mb-1"></i>Profile
+    </button>
+  </nav>
+
+  <script>
+    const tg = window.Telegram?.WebApp;
+    if (tg) tg.expand();
+
+    const BDT_PER_USD = 122.21;
+
+    function fmtCurr(bdtAmount) {
+      const usdAmount = (bdtAmount / BDT_PER_USD).toFixed(2);
+      return `৳ ${bdtAmount.toFixed(2)} ($${usdAmount})`;
+    }
+
+    function generate10DigitId() {
+      return Math.floor(1000000000 + Math.random() * 9000000000).toString();
+    }
+
+    function getJoinedDateFormatted() {
+      const today = new Date();
+      const day = today.getDate();
+      const month = today.toLocaleString('default', { month: 'short' }).toUpperCase();
+      const year = today.getFullYear();
+      return `${day} ${month} ${year}`;
+    }
+
+    const tgUser = tg?.initDataUnsafe?.user;
+    const user = {
+      first_name: tgUser?.first_name || 'User',
+      username: tgUser?.username || '',
+      id: tgUser?.id ? String(tgUser.id) : generate10DigitId(),
+      photo_url: tgUser?.photo_url || ''
+    };
+
+    function getReferLink() {
+      return `https://t.me/TaskPayBD1_Bot?start=r${user.id}`;
+    }
+
+    // Unique per-user storage key
+    const USER_STORAGE_KEY = `taskpay_user_state_${user.id}`;
+
+    const availableAdLinks = [
+      "https://youtube.com/shorts/QKQLl0VQw6I?si=oWzwF_JFcu9b96Gl",
+      "https://youtube.com/shorts/RtUEhRlqcF4?si=QQaPldQUd7bAQvRu",
+      "https://youtube.com/shorts/DXMFCrGSxcg?si=vhQdzi_JavwH5HaW",
+      "https://youtube.com/shorts/ZV6ov1vN7p0?si=sEl3DHCBwzSh_jMr",
+      "https://youtube.com/shorts/Z_khK3dd7bw?si=sBPm_crQ-La2YpIc",
+      "https://youtube.com/shorts/xelHWngAHBk?si=zhAEOkY_vulRJRow",
+      "https://youtube.com/shorts/gRNG27bz030?si=_I99Ip5eaeGvcPeC",
+      "https://youtube.com/shorts/5ZKCfwyWnsU?si=QyztD7LJUA8d8tQk",
+      "https://youtube.com/shorts/u49VfbSJ8-o?si=rKqtyg1gVMitdY0g",
+      "https://youtube.com/shorts/XUXIstcmVuw?si=sEjXEGGMsIKzQ4iq"
+    ];
+
+    // Default User State Template
+    const defaultState = {
+      balance: 0.00,
+      withdrawn: 0.00,
+      totalEarned: 0.00,
+      referrals: 0,
+      adsWatched: 0,
+      activeReferTab: 'leaderboard',
+      myReferralsList: [],
+      withdrawHistory: [],
+      selectedMethod: 'bkash',
+      currentTab: 'home',
+      isWatchingAd: false,
+      adTimer: 25,
+      joinedDate: getJoinedDateFormatted(),
+      tasks: {
+        welcome: { title: 'Welcome bonus', reward: 50.00, link: 'https://t.me/TaskPayBDTasks', status: 'join', category: 'JOIN BONUS', type: 'tg', icon: 'telegram' },
+        proof: { title: 'Payment Proof Channel', reward: 20.00, link: 'https://t.me/TaskPayBDOfficial', status: 'join', category: 'TELEGRAM', type: 'tg', icon: 'telegram' },
+        youtube: { title: 'YouTube Channel', reward: 20.00, link: 'https://www.youtube.com/@TaskPayBD', status: 'join', category: 'YOUTUBE', type: 'external', icon: 'youtube' },
+        official: { title: 'Official Channel', reward: 20.00, link: 'https://t.me/TaskPayBDUpdates', status: 'join', category: 'TELEGRAM', type: 'tg', icon: 'telegram' }
+      }
+    };
+
+    let userState = loadState();
+
+    function saveState() {
+      try {
+        localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(userState));
+      } catch (e) {
+        console.error("Failed to save user state", e);
+      }
+    }
+
+    function loadState() {
+      try {
+        const saved = localStorage.getItem(USER_STORAGE_KEY);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          return { ...defaultState, ...parsed, isWatchingAd: false, adTimer: 25 };
+        }
+      } catch (e) {
+        console.error("Failed to load state", e);
+      }
+      return defaultState;
+    }
+
+    function checkReferral() {
+      const startParam = tg?.initDataUnsafe?.start_param || new URLSearchParams(window.location.search).get('start');
+      if (startParam && startParam !== user.id) {
+        const refTrackKey = `referred_by_${user.id}`;
+        if (!localStorage.getItem(refTrackKey)) {
+          localStorage.setItem(refTrackKey, startParam);
+
+          const referrerKey = `taskpay_user_state_${startParam}`;
+          const savedReferrer = localStorage.getItem(referrerKey);
+          if (savedReferrer) {
+            try {
+              const refState = JSON.parse(savedReferrer);
+              refState.referrals += 1;
+              refState.balance += 50.00;
+              refState.totalEarned += 50.00;
+              refState.myReferralsList.unshift({
+                name: user.first_name,
+                date: getJoinedDateFormatted()
+              });
+              localStorage.setItem(referrerKey, JSON.stringify(refState));
+            } catch (e) { console.error(e); }
+          }
+        }
+      }
+    }
+
+    const defaultLeaderboard = [
+      { name: "Jannat", count: 4993, avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80" },
+      { name: "Arafat", count: 1849, avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=150&q=80" },
+      { name: "Fahim", count: 610, avatar: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=150&q=80" },
+      { name: "Nayeem", count: 325, avatar: "https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?auto=format&fit=crop&w=150&q=80" },
+      { name: "Sakib", count: 272, avatar: "https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&w=150&q=80" },
+      { name: "Anisha", count: 265, avatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=150&q=80" },
+      { name: "Mim", count: 242, avatar: "https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=150&q=80" },
+      { name: "Tania", count: 240, avatar: "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=150&q=80" },
+      { name: "Nusaiba", count: 234, avatar: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=150&q=80" },
+      { name: "Sumaiya", count: 229, avatar: "https://images.unsplash.com/photo-1488426862026-3ee34a7d66df?auto=format&fit=crop&w=150&q=80" }
+    ];
+
+    function renderAvatar(photoUrl, name) {
+      if (photoUrl) {
+        return `<img src="${photoUrl}" class="w-16 h-16 rounded-2xl border-2 border-white/40 object-cover shadow-md" />`;
+      }
+      const initial = name ? name.charAt(0).toUpperCase() : 'U';
+      return `<div class="w-16 h-16 rounded-2xl bg-gradient-to-tr from-amber-400 to-rose-400 text-white font-extrabold text-2xl flex items-center justify-center shadow-lg border-2 border-white/40">${initial}</div>`;
+    }
+
+    function switchTab(tab) {
+      if (userState.isWatchingAd) return;
+      userState.currentTab = tab;
+      saveState();
+
+      const app = document.getElementById('app-content');
+      
+      const tabs = ['home', 'earn', 'refer', 'withdraw', 'profile'];
+      tabs.forEach(t => {
+        const btn = document.getElementById(`nav-${t}`);
+        if (btn) {
+          btn.className = (t === tab)
+            ? 'flex flex-col items-center text-purple-600 text-xs font-medium btn-interactive'
+            : 'flex flex-col items-center text-gray-400 text-xs font-medium btn-interactive';
+        }
+      });
+
+      if (tab === 'home') app.innerHTML = renderHome();
+      else if (tab === 'earn') app.innerHTML = renderEarn();
+      else if (tab === 'refer') app.innerHTML = renderRefer();
+      else if (tab === 'withdraw') app.innerHTML = renderWithdraw();
+      else if (tab === 'profile') app.innerHTML = renderProfile();
+    }
+
+    function renderHome() {
+      const completedTasks = Object.values(userState.tasks).filter(t => t.status === 'done').length;
+      const totalTasks = Object.keys(userState.tasks).length;
+      const pendingTasks = totalTasks - completedTasks;
+      const progressPercent = Math.round((completedTasks / totalTasks) * 100);
+
+      return `
+        <div class="bg-gradient-custom rounded-3xl p-5 text-white shadow-lg animate-slide-left">
+          <div class="flex justify-between items-center mb-4">
+            <div>
+              <p class="text-xs text-white/80 font-medium">Welcome back 👋</p>
+              <h1 class="text-2xl font-bold">${user.first_name}</h1>
+            </div>
+            ${renderAvatar(user.photo_url, user.first_name)}
+          </div>
+          <p class="text-xs text-white/80 font-medium uppercase tracking-wider">Total Balance</p>
+          <p class="text-3xl font-extrabold my-1">${fmtCurr(userState.balance)}</p>
+          <p class="text-xs text-white/90">📈 Total earned: ${fmtCurr(userState.totalEarned)}</p>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3 animate-slide-right">
+          <div onclick="switchTab('withdraw')" class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex items-center space-x-3 cursor-pointer btn-interactive">
+            <div class="w-10 h-10 rounded-xl bg-purple-100 text-purple-600 flex items-center justify-center"><i class="fa-solid fa-wallet"></i></div>
+            <div>
+              <p class="font-bold text-sm">Withdraw</p>
+              <p class="text-xs text-gray-400">Cash out</p>
+            </div>
+          </div>
+          <div onclick="switchTab('refer')" class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex items-center space-x-3 cursor-pointer btn-interactive">
+            <div class="w-10 h-10 rounded-xl bg-red-100 text-red-500 flex items-center justify-center"><i class="fa-solid fa-user-plus"></i></div>
+            <div>
+              <p class="font-bold text-sm">Refer</p>
+              <p class="text-xs text-gray-400">${fmtCurr(50)} / friend</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="bg-gradient-custom rounded-2xl p-4 text-white shadow-sm animate-slide-left">
+          <div class="flex justify-between items-center mb-1">
+            <div class="flex items-center space-x-2">
+              <i class="fa-solid fa-circle-check"></i>
+              <span class="font-bold text-sm">Daily Tasks</span>
+            </div>
+            <button onclick="switchTab('earn')" class="bg-white/20 px-3 py-1 rounded-full text-xs font-semibold backdrop-blur-md btn-interactive">View →</button>
+          </div>
+          <p class="text-xs text-white/80 mb-3">${pendingTasks > 0 ? pendingTasks + ' tasks pending' : 'All tasks completed!'}</p>
+          <div class="w-full bg-black/20 rounded-full h-2 overflow-hidden">
+            <div class="bg-white h-full" style="width: ${progressPercent}%"></div>
+          </div>
+          <div class="flex justify-between text-xs mt-2 text-white/90">
+            <span>${completedTasks} completed</span>
+            <span>${progressPercent}%</span>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3 animate-slide-right">
+          <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100">
+            <div class="w-8 h-8 rounded-full bg-purple-50 text-purple-600 flex items-center justify-center mb-2"><i class="fa-solid fa-users text-sm"></i></div>
+            <p class="text-2xl font-bold text-gray-800">${userState.referrals}</p>
+            <p class="text-xs text-gray-400 font-medium">Total Referrals</p>
+          </div>
+          <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100">
+            <div class="w-8 h-8 rounded-full bg-pink-50 text-pink-500 flex items-center justify-center mb-2"><i class="fa-solid fa-trophy text-sm"></i></div>
+            <p class="text-lg font-bold text-gray-800">${fmtCurr(userState.totalEarned)}</p>
+            <p class="text-xs text-gray-400 font-medium">Total Earned</p>
+          </div>
+        </div>
+
+        <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 space-y-3 animate-slide-left">
+          <div class="flex items-center space-x-2">
+            <span class="text-xl">🎁</span>
+            <h3 class="font-bold text-gray-800 text-base">How to earn</h3>
+          </div>
+          <ol class="space-y-3 text-xs text-gray-600">
+            <li class="flex items-start gap-2.5">
+              <span class="w-5 h-5 bg-purple-600 text-white rounded-full flex items-center justify-center font-bold text-[10px] flex-shrink-0 mt-0.5">1</span>
+              <span>Watch rewarded video ads daily up to the limit.</span>
+            </li>
+            <li class="flex items-start gap-2.5">
+              <span class="w-5 h-5 bg-purple-600 text-white rounded-full flex items-center justify-center font-bold text-[10px] flex-shrink-0 mt-0.5">2</span>
+              <span>Complete simple tasks like joining channels and following pages.</span>
+            </li>
+            <li class="flex items-start gap-2.5">
+              <span class="w-5 h-5 bg-purple-600 text-white rounded-full flex items-center justify-center font-bold text-[10px] flex-shrink-0 mt-0.5">3</span>
+              <span>Invite friends with your referral link and get ${fmtCurr(50)} each.</span>
+            </li>
+          </ol>
+        </div>
+      `;
+    }
+
+    function renderEarn() {
+      const isCompleted = userState.adsWatched >= 10 || availableAdLinks.length === 0;
+
+      return `
+        <div class="bg-gradient-custom rounded-3xl p-5 text-white shadow-lg animate-slide-left">
+          <p class="text-xs text-white/80 uppercase tracking-wider">Daily Ads</p>
+          <div class="flex justify-between items-baseline my-1">
+            <h1 class="text-3xl font-extrabold">Earn</h1>
+            <span class="text-xs">Today's reward: <b class="text-sm">${fmtCurr(10)}</b> / ad</span>
+          </div>
+        </div>
+
+        <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 space-y-3 animate-slide-right">
+          <div class="flex justify-between text-sm font-bold">
+            <span>Daily Progress</span>
+            <span class="text-purple-600">${userState.adsWatched} / 10 watched</span>
+          </div>
+          <div class="w-full bg-gray-100 rounded-full h-3">
+            <div class="bg-purple-600 h-full rounded-full transition-all duration-300" style="width: ${(userState.adsWatched/10)*100}%"></div>
+          </div>
+          <button onclick="watchAd()" ${isCompleted || userState.isWatchingAd ? 'disabled' : ''} class="w-full ${isCompleted ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-purple-600 text-white shadow-md btn-interactive'} font-bold py-3 rounded-xl">
+            ${isCompleted ? '✓ All Ads Watched Today' : '▶ Watch'}
+          </button>
+        </div>
+
+        <h3 class="font-bold text-gray-700 pt-2 flex items-center gap-1.5 animate-slide-left"><i class="fa-solid fa-circle-check text-purple-600"></i> Tasks</h3>
+        
+        <div class="space-y-3 animate-slide-left">
+          ${renderTaskCard('welcome', 'bg-sky-100 text-sky-500')}
+          ${renderTaskCard('proof', 'bg-blue-100 text-blue-500')}
+          ${renderTaskCard('youtube', 'bg-red-100 text-red-600')}
+          ${renderTaskCard('official', 'bg-blue-100 text-blue-500')}
+        </div>
+      `;
+    }
+
+    function renderTaskCard(key, iconColors) {
+      const task = userState.tasks[key];
+      let actionBtn = '';
+
+      if (task.status === 'join') {
+        actionBtn = `<button onclick="handleTaskAction('${key}')" class="bg-purple-50 text-purple-600 border border-purple-200 px-4 py-1.5 rounded-full text-xs font-bold flex items-center gap-1 btn-interactive">Join <i class="fa-solid fa-arrow-up-right-from-square text-[10px]"></i></button>`;
+      } else if (task.status === 'claim') {
+        actionBtn = `<button onclick="handleTaskAction('${key}')" class="bg-green-600 text-white px-4 py-1.5 rounded-full text-xs font-bold shadow-md btn-interactive">Claim</button>`;
+      } else {
+        actionBtn = `<span class="bg-gray-100 text-gray-400 px-3 py-1.5 rounded-full text-xs font-bold flex items-center gap-1"><i class="fa-solid fa-check"></i> Done</span>`;
+      }
+
+      return `
+        <div class="bg-white p-4 rounded-2xl border border-gray-100 flex items-center justify-between shadow-sm">
+          <div class="flex items-center space-x-3">
+            <div class="w-10 h-10 rounded-xl ${iconColors} flex items-center justify-center text-lg">
+              <i class="fa-brands fa-${task.icon}"></i>
+            </div>
+            <div>
+              <p class="font-bold text-sm">${task.title}</p>
+              <div class="flex items-center gap-2 mt-0.5">
+                <span class="bg-purple-100 text-purple-600 text-[10px] font-bold px-2 py-0.5 rounded-md">+${fmtCurr(task.reward)}</span>
+                <span class="bg-gray-100 text-gray-500 text-[9px] font-bold px-1.5 py-0.5 rounded uppercase">${task.category}</span>
+              </div>
+            </div>
+          </div>
+          ${actionBtn}
+        </div>
+      `;
+    }
+
+    function watchAd() {
+      if (userState.adsWatched >= 10 || availableAdLinks.length === 0 || userState.isWatchingAd) return;
+
+      const randomIndex = Math.floor(Math.random() * availableAdLinks.length);
+      const selectedUrl = availableAdLinks[randomIndex];
+
+      window.open(selectedUrl, '_blank');
+
+      userState.isWatchingAd = true;
+      userState.adTimer = 25;
+
+      renderAdModal();
+
+      const timerInterval = setInterval(() => {
+        userState.adTimer -= 1;
+        if (userState.adTimer > 0) {
+          updateAdModalTimer();
+        } else {
+          clearInterval(timerInterval);
+          userState.adsWatched += 1;
+          userState.balance += 10.00;
+          userState.totalEarned += 10.00;
+          userState.isWatchingAd = false;
+
+          saveState();
+          closeModal();
+          switchTab(userState.currentTab);
+        }
+      }, 1000);
+    }
+
+    function renderAdModal() {
+      const modalContainer = document.getElementById('modal-container');
+      const progressPercent = ((25 - userState.adTimer) / 25) * 100;
+
+      modalContainer.innerHTML = `
+        <div class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-6 select-none pointer-events-auto">
+          <div class="bg-white rounded-3xl p-6 w-full max-w-xs text-center shadow-2xl relative overflow-hidden animate-slide-left">
+            <div class="w-16 h-16 rounded-2xl bg-gradient-to-tr from-purple-600 to-pink-500 flex items-center justify-center mx-auto text-white text-2xl shadow-md mb-4">
+              <i class="fa-regular fa-clock"></i>
+            </div>
+            <h2 class="text-xl font-bold text-gray-800 mb-2">এড দেখছেন...</h2>
+            <p class="text-sm text-gray-600 font-medium mb-5">
+              Reward পেতে আরো <b id="ad-seconds-text" class="text-lg text-purple-700 font-extrabold">${userState.adTimer}s</b>
+            </p>
+            <div class="w-full bg-gray-100 rounded-full h-2.5 mb-5 overflow-hidden">
+              <div id="ad-progress-bar" class="bg-gradient-to-r from-purple-600 to-pink-500 h-full rounded-full transition-all duration-1000 ease-linear" style="width: ${progressPercent}%"></div>
+            </div>
+            <p class="text-[11px] text-gray-400 font-medium leading-tight">
+              এখন বন্ধ করবেন না — আগে বন্ধ করলে reward পাবেন না।
+            </p>
+          </div>
+        </div>
+      `;
+    }
+
+    function updateAdModalTimer() {
+      const secText = document.getElementById('ad-seconds-text');
+      const progressBar = document.getElementById('ad-progress-bar');
+      if (secText) secText.innerText = `${userState.adTimer}s`;
+      if (progressBar) {
+        const progressPercent = ((25 - userState.adTimer) / 25) * 100;
+        progressBar.style.width = `${progressPercent}%`;
+      }
+    }
+
+    function closeModal() {
+      document.getElementById('modal-container').innerHTML = '';
+    }
+
+    function handleTaskAction(key) {
+      if (userState.isWatchingAd) return;
+      const task = userState.tasks[key];
+      if (task.status === 'join') {
+        if (task.type === 'tg' && tg?.openTelegramLink) {
+          tg.openTelegramLink(task.link);
+        } else {
+          window.open(task.link, '_blank');
+        }
+        task.status = 'claim';
+        saveState();
+        switchTab('earn');
+      } else if (task.status === 'claim') {
+        task.status = 'done';
+        userState.balance += task.reward;
+        userState.totalEarned += task.reward;
+        saveState();
+        switchTab('earn');
+      }
+    }
+
+    function renderRefer() {
+      const totalReferralEarnings = userState.referrals * 50.00;
+      const refLink = getReferLink();
+
+      let currentBoard = [...defaultLeaderboard];
+      const userBoardIndex = currentBoard.findIndex(item => item.isCurrentUser);
+      if (userBoardIndex > -1) currentBoard.splice(userBoardIndex, 1);
+
+      currentBoard.push({
+        name: user.first_name,
+        count: userState.referrals,
+        avatar: user.photo_url,
+        isCurrentUser: true
+      });
+
+      return `
+        <div class="bg-gradient-custom rounded-3xl p-6 text-white text-center shadow-lg relative overflow-hidden animate-slide-left">
+          <div class="w-12 h-12 bg-white/20 rounded-2xl mx-auto flex items-center justify-center text-2xl mb-2 backdrop-blur-sm">
+            <i class="fa-solid fa-user-plus"></i>
+          </div>
+          <h2 class="text-2xl font-extrabold tracking-tight">Invite & Earn</h2>
+          <p class="text-xs text-white/90 mt-1 font-medium">Get <b class="text-white">${fmtCurr(50)}</b> for every friend who joins</p>
+          
+          <div class="mt-4 bg-white/20 p-1.5 pl-4 rounded-full flex items-center justify-between text-xs backdrop-blur-md border border-white/20 shadow-inner">
+            <span class="truncate pr-2 font-mono text-[11px] text-white/90">${refLink}</span>
+            <div class="flex items-center space-x-1 flex-shrink-0">
+              <button onclick="copyReferLink('${refLink}')" class="bg-white/30 hover:bg-white/40 text-white p-2 rounded-full transition btn-interactive">
+                <i class="fa-regular fa-copy text-sm"></i>
+              </button>
+              <button onclick="shareReferLink('${refLink}')" class="bg-white/30 hover:bg-white/40 text-white p-2 rounded-full transition btn-interactive">
+                <i class="fa-solid fa-share-nodes text-sm"></i>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3 animate-slide-right">
+          <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 text-center">
+            <p class="text-xs text-gray-400 font-medium">Total Referrals</p>
+            <p class="text-3xl font-extrabold text-gray-800 my-1">${userState.referrals}</p>
+          </div>
+          <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 text-center">
+            <p class="text-xs text-gray-400 font-medium">Total Earned</p>
+            <p class="text-sm font-extrabold text-purple-600 my-1">${fmtCurr(totalReferralEarnings)}</p>
+          </div>
+        </div>
+
+        <div class="bg-white p-1 rounded-2xl shadow-sm border border-gray-100 flex space-x-1 animate-slide-left">
+          <button onclick="setReferTab('leaderboard')" class="flex-1 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all btn-interactive ${userState.activeReferTab === 'leaderboard' ? 'btn-gradient text-white shadow' : 'text-gray-500 hover:text-gray-700'}">
+            <i class="fa-solid fa-trophy"></i> Leaderboard
+          </button>
+          <button onclick="setReferTab('my_referrals')" class="flex-1 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all btn-interactive ${userState.activeReferTab === 'my_referrals' ? 'btn-gradient text-white shadow' : 'text-gray-500 hover:text-gray-700'}">
+            <i class="fa-solid fa-users"></i> Your Referrals
+          </button>
+        </div>
+
+        <div class="animate-slide-right">
+          ${userState.activeReferTab === 'leaderboard' ? renderLeaderboardView(currentBoard.slice(0, 10)) : renderMyReferralsView()}
+        </div>
+      `;
+    }
+
+    function renderLeaderboardView(board) {
+      return `
+        <div class="space-y-2.5">
+          ${board.map((item, index) => {
+            let rankBadge = `<span class="text-xs font-bold text-purple-600 w-6 text-center">#${index + 1}</span>`;
+            let bgStyle = 'bg-white';
+
+            if (index === 0) {
+              rankBadge = `<span class="text-lg w-6 text-center">🥇</span>`;
+              bgStyle = 'bg-gradient-to-r from-amber-50 to-orange-50 border-amber-200';
+            } else if (index === 1) {
+              rankBadge = `<span class="text-lg w-6 text-center">🥈</span>`;
+              bgStyle = 'bg-gradient-to-r from-slate-50 to-gray-50 border-slate-200';
+            } else if (index === 2) {
+              rankBadge = `<span class="text-lg w-6 text-center">🥉</span>`;
+              bgStyle = 'bg-gradient-to-r from-amber-900/5 to-amber-800/10 border-amber-300/40';
+            }
+
+            const avatarImg = item.avatar ? `<img src="${item.avatar}" class="w-10 h-10 rounded-full object-cover border border-purple-200 flex-shrink-0" />` : `<div class="w-10 h-10 rounded-full bg-purple-100 text-purple-700 font-bold flex items-center justify-center border border-purple-200 flex-shrink-0">${item.name.charAt(0)}</div>`;
+
+            return `
+              <div class="${bgStyle} p-3.5 rounded-2xl border shadow-sm flex items-center justify-between">
+                <div class="flex items-center space-x-3 truncate">
+                  ${rankBadge}
+                  ${avatarImg}
+                  <div class="truncate">
+                    <p class="font-bold text-sm text-gray-800 truncate">${item.name} ${item.isCurrentUser ? '<span class="text-[10px] bg-purple-100 text-purple-600 px-1.5 py-0.5 rounded ml-1 font-bold">You</span>' : ''}</p>
+                    <p class="text-[11px] text-gray-400">Top Referrer</p>
+                  </div>
+                </div>
+                <div class="text-right flex-shrink-0 pl-2">
+                  <p class="font-extrabold text-purple-700 text-sm">${item.count}</p>
+                  <p class="text-[10px] text-gray-400 font-medium">Referrals</p>
+                </div>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      `;
+    }
+
+    function renderMyReferralsView() {
+      if (userState.myReferralsList.length === 0) {
+        return `
+          <div class="bg-white p-8 rounded-3xl border border-dashed border-purple-200 text-center space-y-3 shadow-sm">
+            <div class="w-14 h-14 bg-purple-50 text-purple-500 rounded-2xl mx-auto flex items-center justify-center text-2xl">
+              <i class="fa-solid fa-user-group"></i>
+            </div>
+            <h3 class="font-bold text-gray-800 text-base">No referrals yet</h3>
+            <p class="text-xs text-gray-400 max-w-xs mx-auto">Share your link with friends to start earning.</p>
+          </div>
+        `;
+      }
+
+      return `
+        <div class="space-y-2.5">
+          ${userState.myReferralsList.map(ref => `
+            <div class="bg-white p-3.5 rounded-2xl border border-gray-100 shadow-sm flex items-center justify-between">
+              <div class="flex items-center space-x-3">
+                <div class="w-10 h-10 rounded-full bg-purple-100 text-purple-700 font-bold flex items-center justify-center border border-purple-200">
+                  ${ref.name.charAt(0)}
+                </div>
+                <div>
+                  <p class="font-bold text-sm text-gray-800">${ref.name}</p>
+                  <p class="text-[11px] text-gray-400">Joined ${ref.date}</p>
+                </div>
+              </div>
+              <span class="btn-gradient text-white px-3 py-1 rounded-full text-xs font-extrabold shadow-sm">+${fmtCurr(50)}</span>
+            </div>
+          `).join('')}
+        </div>
+      `;
+    }
+
+    function setReferTab(tab) {
+      if (userState.isWatchingAd) return;
+      userState.activeReferTab = tab;
+      saveState();
+      switchTab('refer');
+    }
+
+    function copyReferLink(link) {
+      navigator.clipboard.writeText(link);
+      if (tg?.showPopup) {
+        tg.showPopup({ title: 'Success', message: 'Referral link copied to clipboard!', buttons: [{ type: 'ok' }] });
+      } else {
+        alert('Referral link copied to clipboard!');
+      }
+    }
+
+    function shareReferLink(link) {
+      const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent('Join Bangla Task Hub and earn daily rewards!')}`;
+      if (tg?.openTelegramLink) {
+        tg.openTelegramLink(shareUrl);
+      } else {
+        window.open(shareUrl, '_blank');
+      }
+    }
+
+    function selectWithdrawMethod(method) {
+      userState.selectedMethod = method;
+      saveState();
+      switchTab('withdraw');
+    }
+
+    function updateRequestButtonText() {
+      const amtInput = document.getElementById('withdraw-amount');
+      const btnText = document.getElementById('request-btn-text');
+      if (!btnText) return;
+
+      const rawVal = parseFloat(amtInput?.value || 0);
+      const isUsdt = userState.selectedMethod === 'usdt';
+      
+      let displayAmt = 0;
+      if (rawVal > 0) {
+        displayAmt = rawVal;
+      } else {
+        displayAmt = isUsdt ? 10 : 1020;
+      }
+
+      if (isUsdt) {
+        btnText.innerText = `Request $${displayAmt.toFixed(2)}`;
+      } else {
+        btnText.innerText = `Request ৳ ${displayAmt.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+      }
+    }
+
+    function processWithdraw() {
+      return;
+    }
+
+    function renderWithdraw() {
+      const isUsdt = userState.selectedMethod === 'usdt';
+      const minText = isUsdt ? "Min: $10.00" : "Min: ৳ 1,020.00";
+      const initialAmountVal = isUsdt ? 10 : 1020;
+      const initialBtnText = isUsdt ? "Request $10.00" : "Request ৳ 1,020.00";
+      const placeholderText = isUsdt ? "Enter TRC20 address" : "01XXXXXXXXX";
+
+      const history = userState.withdrawHistory || [];
+
+      return `
+        <div class="bg-white p-5 rounded-3xl shadow-sm border border-gray-100 space-y-4 animate-slide-left">
+          <div class="flex items-center space-x-2 text-purple-700">
+            <i class="fa-solid fa-arrow-down-long text-sm"></i>
+            <h2 class="font-extrabold text-gray-900 text-lg">Request Payout</h2>
+          </div>
+
+          <div>
+            <label class="text-xs text-gray-700 font-bold block mb-2">Payment Method</label>
+            <div class="grid grid-cols-2 gap-3">
+              <!-- bKash Option -->
+              <button onclick="selectWithdrawMethod('bkash')" class="p-3 rounded-2xl border flex items-center justify-center space-x-2 transition btn-interactive ${userState.selectedMethod === 'bkash' ? 'bg-pink-600 border-pink-600 text-white font-bold shadow-md' : 'bg-gray-50 border-gray-100 text-gray-700'}">
+                <div class="w-6 h-6 rounded-full bg-white flex items-center justify-center p-0.5">
+                  <svg class="w-full h-full" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <rect width="200" height="200" rx="30" fill="#E2136E"/>
+                    <path d="M110 40L60 90L110 140L160 90L110 40Z" fill="white"/>
+                    <path d="M60 90L40 110L60 130L80 110L60 90Z" fill="white"/>
+                  </svg>
+                </div>
+                <span class="text-sm">bKash</span>
+              </button>
+
+              <!-- Nagad Option -->
+              <button onclick="selectWithdrawMethod('nagad')" class="p-3 rounded-2xl border flex items-center justify-center space-x-2 transition btn-interactive ${userState.selectedMethod === 'nagad' ? 'bg-orange-500 border-orange-500 text-white font-bold shadow-md' : 'bg-gray-50 border-gray-100 text-gray-700'}">
+                <div class="w-6 h-6 rounded-full bg-white flex items-center justify-center p-0.5">
+                  <svg class="w-full h-full" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <rect width="200" height="200" rx="30" fill="#F7921E"/>
+                    <circle cx="100" cy="100" r="45" fill="white"/>
+                    <path d="M100 65C80.67 65 65 80.67 65 100C65 119.33 80.67 135 100 135C119.33 135 135 119.33 135 100" stroke="#F7921E" stroke-width="12" stroke-linecap="round"/>
+                  </svg>
+                </div>
+                <span class="text-sm">Nagad</span>
+              </button>
+            </div>
+
+            <div class="mt-2">
+              <button onclick="selectWithdrawMethod('usdt')" class="w-full p-2.5 rounded-xl border flex items-center justify-center space-x-2 transition btn-interactive ${userState.selectedMethod === 'usdt' ? 'bg-emerald-600 border-emerald-600 text-white font-bold shadow-md' : 'bg-gray-50 border-gray-100 text-gray-600'}">
+                <div class="w-5 h-5 rounded-full bg-emerald-500 text-white flex items-center justify-center text-xs font-bold">₮</div>
+                <span class="text-xs font-bold">USDT (TRC20)</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="space-y-3 pt-1">
+            <div>
+              <label class="text-xs text-gray-800 font-bold block mb-1">Account Number</label>
+              <input id="withdraw-account" type="text" placeholder="${placeholderText}" class="w-full bg-slate-50 border border-gray-200 rounded-2xl p-3.5 text-sm outline-none focus:border-purple-600 transition placeholder-gray-400 font-medium" />
+            </div>
+
+            <div>
+              <div class="flex justify-between items-center mb-1">
+                <label class="text-xs text-gray-800 font-bold">Amount</label>
+                <span class="text-[11px] text-emerald-600 font-bold">${minText}</span>
+              </div>
+              <div class="relative flex items-center">
+                <span class="absolute left-4 text-gray-800 font-bold text-base">${isUsdt ? '$' : '৳'}</span>
+                <input id="withdraw-amount" type="number" oninput="updateRequestButtonText()" value="${initialAmountVal}" class="w-full bg-slate-50 border border-gray-200 rounded-2xl p-3.5 pl-9 text-base font-extrabold text-gray-800 outline-none focus:border-purple-600 transition" />
+              </div>
+            </div>
+
+            <button disabled class="w-full bg-gray-300 text-gray-500 cursor-not-allowed font-extrabold py-4 rounded-2xl shadow-none text-base mt-2">
+              <span id="request-btn-text">${initialBtnText}</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- RECENT TRANSACTIONS / WITHDRAWAL HISTORY -->
+        <div class="space-y-2 animate-slide-right">
+          <h3 class="font-extrabold text-gray-800 text-sm px-1">Recent Transactions</h3>
+          
+          ${history.length === 0 ? `
+            <div class="bg-white/50 p-8 rounded-2xl border border-dashed border-gray-300 text-center text-gray-400 text-xs font-medium">
+              No withdrawal history yet.
+            </div>
+          ` : `
+            <div class="space-y-2">
+              ${history.map(item => `
+                <div class="bg-white p-3.5 rounded-2xl border border-gray-100 shadow-sm flex items-center justify-between">
+                  <div class="flex items-center space-x-3">
+                    <div class="w-10 h-10 rounded-xl bg-purple-50 text-purple-600 font-bold flex items-center justify-center text-xs">
+                      ${item.method}
+                    </div>
+                    <div>
+                      <p class="font-bold text-xs text-gray-800">${item.account}</p>
+                      <p class="text-[10px] text-gray-400">${item.date}</p>
+                    </div>
+                  </div>
+                  <div class="text-right">
+                    <p class="font-extrabold text-sm text-gray-800">${item.amountText}</p>
+                    <span class="inline-block text-[9px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">${item.status}</span>
+                  </div>
+                </div>
+              `).join('')}
+            </div>
+          `}
+        </div>
+      `;
+    }
+
+    function renderProfile() {
+      return `
+        <div class="bg-profile-banner rounded-3xl p-6 text-white text-center shadow-lg animate-slide-left">
+          <div class="mx-auto flex justify-center mb-2">
+            ${renderAvatar(user.photo_url, user.first_name)}
+          </div>
+          <h2 class="text-xl font-extrabold">${user.first_name}</h2>
+          <p class="text-xs text-white/80">ID: ${user.id}</p>
+          <span class="inline-block mt-2 bg-white/20 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider">Member Since ${userState.joinedDate}</span>
+        </div>
+
+        <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 space-y-3 animate-slide-right">
+          <h3 class="font-bold text-gray-800 text-sm mb-2">Account Statistics</h3>
+          <div class="flex justify-between items-center py-2 border-b border-gray-50 text-xs">
+            <span class="text-gray-500">Current Balance</span>
+            <span class="font-bold text-gray-800">${fmtCurr(userState.balance)}</span>
+          </div>
+          <div class="flex justify-between items-center py-2 border-b border-gray-50 text-xs">
+            <span class="text-gray-500">Total Earned</span>
+            <span class="font-bold text-purple-600">${fmtCurr(userState.totalEarned)}</span>
+          </div>
+          <div class="flex justify-between items-center py-2 border-b border-gray-50 text-xs">
+            <span class="text-gray-500">Total Referrals</span>
+            <span class="font-bold text-gray-800">${userState.referrals}</span>
+          </div>
+          <div class="flex justify-between items-center py-2 text-xs">
+            <span class="text-gray-500">Ads Watched Today</span>
+            <span class="font-bold text-gray-800">${userState.adsWatched} / 10</span>
+          </div>
+        </div>
+
+        <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 space-y-3 animate-slide-left">
+          <div class="flex items-center space-x-2 text-purple-600">
+            <i class="fa-solid fa-triangle-exclamation text-base"></i>
+            <h3 class="font-bold text-gray-800 text-sm">Withdrawal Requirements & Rules</h3>
+          </div>
+          <ul class="space-y-2 text-xs text-gray-600 list-disc pl-4 leading-relaxed">
+            <li>Minimum withdrawal limit for bKash / Nagad is <b>৳ 1,020.00</b> and USDT is <b>$10.00</b>.</li>
+            <li>Cashout requests are manually reviewed and processed within <b>24 to 48 hours</b>.</li>
+            <li>Ensure your bKash or Nagad account is active and configured to receive personal cash-in/transfers.</li>
+            <li>Multiple accounts or self-referral attempts will result in an immediate and permanent account suspension.</li>
+            <li>Join our official <a href="https://t.me/TaskPayBDOfficial" target="_blank" class="text-purple-600 underline font-semibold">Payment Proof Channel</a> to see live payout confirmations.</li>
+          </ul>
+        </div>
+      `;
+    }
+
+    // Initialize application on page load
+    window.addEventListener('DOMContentLoaded', () => {
+      closeModal();
+      checkReferral();
+      switchTab(userState.currentTab || 'home');
+    });
+  </script>
+</body>
+</html>
