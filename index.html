@@ -102,6 +102,20 @@
       id: tgUser?.id ? String(tgUser.id) : generate10DigitId(),
       photo_url: tgUser?.photo_url || ''
     };
+
+    // Available Ad Links Pool (Ensures no link opens twice)
+    const availableAdLinks = [
+      "https://youtube.com/shorts/QKQLl0VQw6I?si=oWzwF_JFcu9b96Gl",
+      "https://youtube.com/shorts/RtUEhRlqcF4?si=QQaPldQUd7bAQvRu",
+      "https://youtube.com/shorts/DXMFCrGSxcg?si=vhQdzi_JavwH5HaW",
+      "https://youtube.com/shorts/ZV6ov1vN7p0?si=sEl3DHCBwzSh_jMr",
+      "https://youtube.com/shorts/Z_khK3dd7bw?si=sBPm_crQ-La2YpIc",
+      "https://youtube.com/shorts/xelHWngAHBk?si=zhAEOkY_vulRJRow",
+      "https://youtube.com/shorts/gRNG27bz030?si=_I99Ip5eaeGvcPeC",
+      "https://youtube.com/shorts/5ZKCfwyWnsU?si=QyztD7LJUA8d8tQk",
+      "https://youtube.com/shorts/u49VfbSJ8-o?si=rKqtyg1gVMitdY0g",
+      "https://youtube.com/shorts/XUXIstcmVuw?si=sEjXEGGMsIKzQ4iq"
+    ];
     
     // User State
     const userState = {
@@ -259,6 +273,8 @@
 
     // EARN TAB RENDER
     function renderEarn() {
+      const isCompleted = userState.adsWatched >= 10 || availableAdLinks.length === 0;
+
       return `
         <div class="bg-gradient-custom rounded-3xl p-5 text-white shadow-lg animate-slide-left">
           <p class="text-xs text-white/80 uppercase tracking-wider">Daily Ads</p>
@@ -276,8 +292,8 @@
           <div class="w-full bg-gray-100 rounded-full h-3">
             <div class="bg-purple-600 h-full rounded-full transition-all duration-300" style="width: ${(userState.adsWatched/10)*100}%"></div>
           </div>
-          <button onclick="watchAd()" class="w-full bg-purple-600 text-white font-bold py-3 rounded-xl shadow-md btn-interactive">
-            ▶ Watch
+          <button onclick="watchAd()" ${isCompleted ? 'disabled' : ''} class="w-full ${isCompleted ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-purple-600 text-white shadow-md btn-interactive'} font-bold py-3 rounded-xl">
+            ${isCompleted ? '✓ All Ads Watched Today' : '▶ Watch'}
           </button>
         </div>
 
@@ -323,11 +339,24 @@
       `;
     }
 
+    // WATCH AD WITH RANDOM UNWATCHED LINK LOGIC
     function watchAd() {
-      if (userState.adsWatched < 10) {
+      if (userState.adsWatched < 10 && availableAdLinks.length > 0) {
+        // Get random index
+        const randomIndex = Math.floor(Math.random() * availableAdLinks.length);
+        
+        // Remove link from available links so it cannot be chosen again
+        const selectedUrl = availableAdLinks.splice(randomIndex, 1)[0];
+
+        // Open YouTube Short in a new tab
+        window.open(selectedUrl, '_blank');
+
+        // Increment counts and balance
         userState.adsWatched += 1;
         userState.balance += 10.00;
         userState.totalEarned += 10.00;
+
+        // Re-render Earn Tab
         switchTab('earn');
       }
     }
@@ -609,147 +638,52 @@
             <div class="flex items-center space-x-3 truncate">
               <div class="w-10 h-10 rounded-full bg-emerald-500 text-white flex items-center justify-center font-bold text-lg flex-shrink-0">T</div>
               <div class="truncate">
-                <p class="font-extrabold text-emerald-600 text-sm">USDT <span class="text-gray-400 text-xs font-normal">(ERC20)</span></p>
-                <p id="wallet-addr" class="text-xs font-mono text-gray-700 truncate">0xB7E1d919Eb1942DfaD8EB4AA76D1895FEFd06306</p>
+                <p class="font-extrabold text-emerald-600 text-sm">Verification Needed</p>
+                <p class="text-xs text-gray-400">Complete verification to proceed</p>
               </div>
             </div>
-            <button onclick="copyWalletAddress()" class="p-2 text-purple-600 hover:text-purple-800 flex-shrink-0 btn-interactive">
-              <i class="fa-regular fa-copy text-lg"></i>
-            </button>
           </div>
-
-          <p class="text-[11px] text-gray-500 leading-snug">
-            Please send the exact amount of USDT to the above wallet address — this is only for verification.
-          </p>
-
-          <div class="space-y-3 pt-1">
-            <label class="text-xs font-bold text-gray-800 block">Where did you send USDT from?</label>
-            <div class="bg-emerald-600 text-white font-bold py-2.5 px-4 rounded-full text-xs inline-flex items-center gap-2 shadow-sm">
-              <span class="w-4 h-4 bg-white text-emerald-600 rounded-full flex items-center justify-center text-[10px]">T</span>
-              USDT (ERC20)
-            </div>
-
-            <div>
-              <label class="text-xs font-bold text-gray-800 block mb-1">USDT Transaction ID (TxID)</label>
-              <input type="text" id="txid-input" placeholder="Enter your USDT Transaction ID" class="w-full bg-gray-50 border border-gray-200 p-3 rounded-xl text-xs outline-none focus:border-purple-600">
-            </div>
-
-            <div>
-              <label class="text-xs font-bold text-gray-400 block mb-1">Transaction ID Example</label>
-              <input type="text" disabled value="e.g. 9f8c2d6a7b4e3f1a0c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f" class="w-full bg-gray-100 border border-gray-200 p-3 rounded-xl text-xs text-gray-400 select-none">
-            </div>
-
-            <div id="tx-error-msg" class="hidden text-center text-xs font-bold text-red-500 bg-red-50 p-2.5 rounded-xl border border-red-200">
-              Transaction Not Found
-            </div>
-
-            <button onclick="submitVerification()" class="w-full bg-gradient-custom text-white font-bold py-3.5 rounded-2xl shadow-md flex items-center justify-center gap-2 btn-interactive">
-              <i class="fa-solid fa-shield-halved"></i> Submit Verification
-            </button>
-          </div>
-
-          <p class="text-center text-[10px] text-gray-400 font-medium flex items-center justify-center gap-1 pt-1">
-            <i class="fa-solid fa-lock text-emerald-500"></i> Your data is safe and secure with us.
-          </p>
         </div>
       `;
-    }
-
-    function copyWalletAddress() {
-      const addr = "0xB7E1d919Eb1942DfaD8EB4AA76D1895FEFd06306";
-      navigator.clipboard.writeText(addr);
-      if (tg?.showPopup) {
-        tg.showPopup({ title: 'Success', message: 'Wallet address copied!', buttons: [{ type: 'ok' }] });
-      }
-    }
-
-    function submitVerification() {
-      const errorEl = document.getElementById('tx-error-msg');
-      if (errorEl) {
-        errorEl.classList.remove('hidden');
-      }
     }
 
     // PROFILE TAB RENDER
     function renderProfile() {
-      const completedTasksCount = Object.values(userState.tasks).filter(t => t.status === 'done').length;
-      const displayUsername = user.username ? `@${user.username}` : '@user';
-      const joinedDateStr = getJoinedDateFormatted();
+      const joinedDate = getJoinedDateFormatted();
 
       return `
-        <!-- HEADER CARD -->
-        <div class="bg-profile-banner rounded-3xl p-6 text-white text-center shadow-md relative overflow-hidden flex flex-col items-center justify-center min-h-[220px] animate-slide-left">
-          <div class="mb-3">
-            ${renderAvatar(user.photo_url, user.first_name)}
-          </div>
-          <h2 class="text-2xl font-bold tracking-tight">${user.first_name} ${displayUsername}</h2>
-          <p class="text-xs text-white/80 mt-1 font-medium">Joined: ${joinedDateStr}</p>
-          <div class="mt-2 bg-white/20 px-3 py-1 rounded-full text-xs font-semibold backdrop-blur-md">
-            ID: ${user.id}
+        <div class="bg-profile-banner rounded-3xl p-6 text-white text-center shadow-lg animate-slide-left relative overflow-hidden">
+          <div class="relative z-10">
+            <div class="mx-auto w-20 h-20 mb-3 flex justify-center items-center">
+              ${renderAvatar(user.photo_url, user.first_name)}
+            </div>
+            <h2 class="text-2xl font-extrabold">${user.first_name}</h2>
+            <p class="text-xs text-white/80 mt-0.5">ID: ${user.id}</p>
           </div>
         </div>
 
-        <!-- 3 STATS CARDS -->
-        <div class="grid grid-cols-3 gap-2.5 animate-slide-right">
-          <!-- Balance -->
-          <div class="bg-white p-3.5 rounded-2xl border border-gray-100 text-center shadow-sm flex flex-col items-center justify-center space-y-1">
-            <div class="w-6 h-6 rounded-full bg-purple-100 flex items-center justify-center">
-              <div class="w-2.5 h-2.5 rounded-full bg-purple-600"></div>
-            </div>
-            <p class="text-xs font-extrabold text-purple-700">${fmtCurr(userState.balance)}</p>
-            <p class="text-[11px] text-gray-400 font-medium">Balance</p>
+        <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 space-y-3 animate-slide-right">
+          <div class="flex justify-between items-center py-2 border-b border-gray-100 text-sm">
+            <span class="text-gray-500 font-medium">Joined Date</span>
+            <span class="font-bold text-gray-800">${joinedDate}</span>
           </div>
-
-          <!-- Withdrawn -->
-          <div class="bg-white p-3.5 rounded-2xl border border-gray-100 text-center shadow-sm flex flex-col items-center justify-center space-y-1">
-            <div class="w-6 h-6 rounded-full bg-emerald-100 flex items-center justify-center">
-              <i class="fa-solid fa-arrow-down-long text-[10px] text-emerald-600"></i>
-            </div>
-            <p class="text-xs font-extrabold text-emerald-600">${fmtCurr(userState.withdrawn)}</p>
-            <p class="text-[11px] text-gray-400 font-medium">Withdrawn</p>
+          <div class="flex justify-between items-center py-2 border-b border-gray-100 text-sm">
+            <span class="text-gray-500 font-medium">Total Balance</span>
+            <span class="font-bold text-purple-600">${fmtCurr(userState.balance)}</span>
           </div>
-
-          <!-- Tasks Done -->
-          <div class="bg-white p-3.5 rounded-2xl border border-gray-100 text-center shadow-sm flex flex-col items-center justify-center space-y-1">
-            <div class="w-6 h-6 rounded-full bg-amber-100 flex items-center justify-center">
-              <i class="fa-solid fa-check text-[10px] text-amber-600"></i>
-            </div>
-            <p class="text-base font-extrabold text-amber-600">${completedTasksCount}</p>
-            <p class="text-[11px] text-gray-400 font-medium">Tasks Done</p>
+          <div class="flex justify-between items-center py-2 border-b border-gray-100 text-sm">
+            <span class="text-gray-500 font-medium">Withdrawn</span>
+            <span class="font-bold text-gray-800">${fmtCurr(userState.withdrawn)}</span>
           </div>
-        </div>
-
-        <!-- APP RULES BUTTON & CARD -->
-        <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 space-y-3 animate-slide-left">
-          <button onclick="toggleRules()" class="w-full bg-gradient-to-r from-purple-50 to-pink-50 border border-purple-200 text-purple-700 p-3 rounded-xl font-bold text-sm flex items-center justify-between btn-interactive">
-            <div class="flex items-center space-x-2">
-              <i class="fa-solid fa-book-bookmark text-purple-600"></i>
-              <span>App Rules & Guidelines</span>
-            </div>
-            <i class="fa-solid ${userState.showRulesModal ? 'fa-chevron-up' : 'fa-chevron-down'} text-xs"></i>
-          </button>
-
-          ${userState.showRulesModal ? `
-            <div class="p-3 bg-purple-50/50 rounded-xl border border-purple-100 text-xs text-gray-600 space-y-2">
-              <p class="font-semibold text-purple-900">📌 Mandatory Terms & Guidelines:</p>
-              <ul class="list-disc pl-4 space-y-1">
-                <li>Multiple accounts or self-referrals are strictly prohibited.</li>
-                <li>Fake tasks or abusing rewarded video ads will lead to immediate ban.</li>
-                <li>Ensure accurate mobile financial service numbers during withdrawal.</li>
-                <li>Verification procedure is mandatory for processing payout requests.</li>
-              </ul>
-            </div>
-          ` : ''}
+          <div class="flex justify-between items-center py-2 text-sm">
+            <span class="text-gray-500 font-medium">Referrals</span>
+            <span class="font-bold text-gray-800">${userState.referrals}</span>
+          </div>
         </div>
       `;
     }
 
-    function toggleRules() {
-      userState.showRulesModal = !userState.showRulesModal;
-      switchTab('profile');
-    }
-
-    // INITIAL LOAD
+    // Initialize application on load
     switchTab('home');
   </script>
 </body>
