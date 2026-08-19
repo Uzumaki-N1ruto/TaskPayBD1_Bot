@@ -102,7 +102,7 @@
       photo_url: tgUser?.photo_url || ''
     };
 
-    // Unique per-user storage key so data is private to each user/device
+    // Unique per-user storage key
     const USER_STORAGE_KEY = `taskpay_user_state_${user.id}`;
 
     const availableAdLinks = [
@@ -127,6 +127,7 @@
       adsWatched: 0,
       activeReferTab: 'leaderboard',
       myReferralsList: [],
+      withdrawHistory: [],
       selectedMethod: 'bkash',
       currentTab: 'home',
       isWatchingAd: false,
@@ -140,7 +141,6 @@
       }
     };
 
-    // Load state specifically for this individual Telegram ID
     let userState = loadState();
 
     function saveState() {
@@ -164,7 +164,6 @@
       return defaultState;
     }
 
-    // Process Referral Link Parameter on startup
     function checkReferral() {
       const startParam = tg?.initDataUnsafe?.start_param || new URLSearchParams(window.location.search).get('start');
       if (startParam && startParam !== user.id) {
@@ -172,7 +171,6 @@
         if (!localStorage.getItem(refTrackKey)) {
           localStorage.setItem(refTrackKey, startParam);
 
-          // Update referrer's storage if on same device or local test session
           const referrerKey = `taskpay_user_state_${startParam}`;
           const savedReferrer = localStorage.getItem(referrerKey);
           if (savedReferrer) {
@@ -656,95 +654,188 @@
       switchTab('withdraw');
     }
 
+    function updateRequestButtonText() {
+      const amtInput = document.getElementById('withdraw-amount');
+      const btnText = document.getElementById('request-btn-text');
+      if (!btnText) return;
+
+      const rawVal = parseFloat(amtInput?.value || 0);
+      const isUsdt = userState.selectedMethod === 'usdt';
+      
+      let displayAmt = 0;
+      if (rawVal > 0) {
+        displayAmt = rawVal;
+      } else {
+        displayAmt = isUsdt ? 10 : 1020;
+      }
+
+      if (isUsdt) {
+        btnText.innerText = `Request $${displayAmt.toFixed(2)}`;
+      } else {
+        btnText.innerText = `Request ৳ ${displayAmt.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+      }
+    }
+
     function processWithdraw() {
-      const amount = parseFloat(document.getElementById('withdraw-amount')?.value || 0);
+      const amountInput = parseFloat(document.getElementById('withdraw-amount')?.value || 0);
       const num = document.getElementById('withdraw-account')?.value || '';
 
+      const isUsdt = userState.selectedMethod === 'usdt';
+      const minLimitUsd = 10;
+      const minLimitBdt = 1020;
+
+      let bdtDeduct = 0;
+      let displayAmountStr = '';
+
       if (!num) {
-        alert('Please enter your account number or address.');
+        alert('Please enter your account number or TRC20 address.');
         return;
       }
-      if (isNaN(amount) || amount < 500) {
-        alert('Minimum withdrawal amount is ৳ 500.00');
-        return;
+
+      if (isUsdt) {
+        if (isNaN(amountInput) || amountInput < minLimitUsd) {
+          alert('Minimum withdrawal for USDT is $10.00');
+          return;
+        }
+        bdtDeduct = amountInput * BDT_PER_USD;
+        displayAmountStr = `$${amountInput.toFixed(2)}`;
+      } else {
+        if (isNaN(amountInput) || amountInput < minLimitBdt) {
+          alert('Minimum withdrawal for bKash and Nagad is ৳ 1,020.00');
+          return;
+        }
+        bdtDeduct = amountInput;
+        displayAmountStr = `৳ ${amountInput.toFixed(2)}`;
       }
-      if (amount > userState.balance) {
+
+      if (bdtDeduct > userState.balance) {
         alert('Insufficient balance.');
         return;
       }
 
-      userState.balance -= amount;
-      userState.withdrawn += amount;
-      saveState();
+      userState.balance -= bdtDeduct;
+      userState.withdrawn += bdtDeduct;
 
-      alert(`Withdrawal request for ${fmtCurr(amount)} via ${userState.selectedMethod.toUpperCase()} submitted successfully!`);
+      if (!userState.withdrawHistory) userState.withdrawHistory = [];
+      userState.withdrawHistory.unshift({
+        id: Math.floor(100000 + Math.random() * 900000),
+        method: userState.selectedMethod.toUpperCase(),
+        account: num,
+        amountText: displayAmountStr,
+        bdtAmount: bdtDeduct,
+        date: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
+        status: 'Pending'
+      });
+
+      saveState();
+      alert(`Withdrawal request of ${displayAmountStr} via ${userState.selectedMethod.toUpperCase()} submitted successfully!`);
       switchTab('withdraw');
     }
 
     function renderWithdraw() {
+      const isUsdt = userState.selectedMethod === 'usdt';
+      const minText = isUsdt ? "Min: $10.00" : "Min: ৳ 1,020.00";
+      const initialAmountVal = isUsdt ? 10 : 1020;
+      const initialBtnText = isUsdt ? "Request $10.00" : "Request ৳ 1,020.00";
+      const placeholderText = isUsdt ? "Enter TRC20 address" : "01XXXXXXXXX";
+
+      const history = userState.withdrawHistory || [];
+
       return `
-        <div class="bg-gradient-custom rounded-3xl p-6 text-white shadow-lg animate-slide-left">
-          <p class="text-xs text-white/80 uppercase tracking-wider font-semibold">Available Balance</p>
-          <h1 class="text-3xl font-extrabold my-1">${fmtCurr(userState.balance)}</h1>
-          <p class="text-xs text-white/90">Total Withdrawn: ${fmtCurr(userState.withdrawn)}</p>
+        <div class="bg-white p-5 rounded-3xl shadow-sm border border-gray-100 space-y-4 animate-slide-left">
+          <div class="flex items-center space-x-2 text-purple-700">
+            <i class="fa-solid fa-arrow-down-long text-sm"></i>
+            <h2 class="font-extrabold text-gray-900 text-lg">Request Payout</h2>
+          </div>
+
+          <div>
+            <label class="text-xs text-gray-700 font-bold block mb-2">Payment Method</label>
+            <div class="grid grid-cols-2 gap-3">
+              <!-- bKash Option -->
+              <button onclick="selectWithdrawMethod('bkash')" class="p-3 rounded-2xl border flex items-center justify-center space-x-2 transition btn-interactive ${userState.selectedMethod === 'bkash' ? 'bg-pink-600 border-pink-600 text-white font-bold shadow-md' : 'bg-gray-50 border-gray-100 text-gray-700'}">
+                <div class="w-6 h-6 rounded-full bg-white flex items-center justify-center p-0.5">
+                  <svg class="w-full h-full" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <rect width="200" height="200" rx="30" fill="#E2136E"/>
+                    <path d="M110 40L60 90L110 140L160 90L110 40Z" fill="white"/>
+                    <path d="M60 90L40 110L60 130L80 110L60 90Z" fill="white"/>
+                  </svg>
+                </div>
+                <span class="text-sm">bKash</span>
+              </button>
+
+              <!-- Nagad Option -->
+              <button onclick="selectWithdrawMethod('nagad')" class="p-3 rounded-2xl border flex items-center justify-center space-x-2 transition btn-interactive ${userState.selectedMethod === 'nagad' ? 'bg-orange-500 border-orange-500 text-white font-bold shadow-md' : 'bg-gray-50 border-gray-100 text-gray-700'}">
+                <div class="w-6 h-6 rounded-full bg-white flex items-center justify-center p-0.5">
+                  <svg class="w-full h-full" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <rect width="200" height="200" rx="30" fill="#F7921E"/>
+                    <circle cx="100" cy="100" r="45" fill="white"/>
+                    <path d="M100 65C80.67 65 65 80.67 65 100C65 119.33 80.67 135 100 135C119.33 135 135 119.33 135 100" stroke="#F7921E" stroke-width="12" stroke-linecap="round"/>
+                  </svg>
+                </div>
+                <span class="text-sm">Nagad</span>
+              </button>
+            </div>
+
+            <div class="mt-2">
+              <button onclick="selectWithdrawMethod('usdt')" class="w-full p-2.5 rounded-xl border flex items-center justify-center space-x-2 transition btn-interactive ${userState.selectedMethod === 'usdt' ? 'bg-emerald-600 border-emerald-600 text-white font-bold shadow-md' : 'bg-gray-50 border-gray-100 text-gray-600'}">
+                <div class="w-5 h-5 rounded-full bg-emerald-500 text-white flex items-center justify-center text-xs font-bold">₮</div>
+                <span class="text-xs font-bold">USDT (TRC20)</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="space-y-3 pt-1">
+            <div>
+              <label class="text-xs text-gray-800 font-bold block mb-1">Account Number</label>
+              <input id="withdraw-account" type="text" placeholder="${placeholderText}" class="w-full bg-slate-50 border border-gray-200 rounded-2xl p-3.5 text-sm outline-none focus:border-purple-600 transition placeholder-gray-400 font-medium" />
+            </div>
+
+            <div>
+              <div class="flex justify-between items-center mb-1">
+                <label class="text-xs text-gray-800 font-bold">Amount</label>
+                <span class="text-[11px] text-emerald-600 font-bold">${minText}</span>
+              </div>
+              <div class="relative flex items-center">
+                <span class="absolute left-4 text-gray-800 font-bold text-base">${isUsdt ? '$' : '৳'}</span>
+                <input id="withdraw-amount" type="number" oninput="updateRequestButtonText()" value="${initialAmountVal}" class="w-full bg-slate-50 border border-gray-200 rounded-2xl p-3.5 pl-9 text-base font-extrabold text-gray-800 outline-none focus:border-purple-600 transition" />
+              </div>
+            </div>
+
+            <button onclick="processWithdraw()" class="w-full btn-gradient text-white font-extrabold py-4 rounded-2xl shadow-md btn-interactive text-base mt-2">
+              <span id="request-btn-text">${initialBtnText}</span>
+            </button>
+          </div>
         </div>
 
-        <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 space-y-4 animate-slide-right">
-          <h3 class="font-bold text-gray-800 text-sm">Select Method</h3>
-          <div class="grid grid-cols-3 gap-2">
-            <!-- bKash Button with SVG Logo -->
-            <button onclick="selectWithdrawMethod('bkash')" class="p-3 rounded-xl border flex flex-col items-center justify-center gap-1.5 btn-interactive ${userState.selectedMethod === 'bkash' ? 'border-pink-600 bg-pink-50 text-pink-700 font-bold' : 'border-gray-200 text-gray-600'}">
-              <svg class="w-8 h-8" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <rect width="200" height="200" rx="30" fill="#E2136E"/>
-                <path d="M110 40L60 90L110 140L160 90L110 40Z" fill="white"/>
-                <path d="M60 90L40 110L60 130L80 110L60 90Z" fill="white"/>
-              </svg>
-              <span class="text-xs font-bold">bKash</span>
-            </button>
-
-            <!-- Nagad Button with SVG Logo -->
-            <button onclick="selectWithdrawMethod('nagad')" class="p-3 rounded-xl border flex flex-col items-center justify-center gap-1.5 btn-interactive ${userState.selectedMethod === 'nagad' ? 'border-orange-600 bg-orange-50 text-orange-700 font-bold' : 'border-gray-200 text-gray-600'}">
-              <svg class="w-8 h-8" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <rect width="200" height="200" rx="30" fill="#F7921E"/>
-                <circle cx="100" cy="100" r="45" fill="white"/>
-                <path d="M100 65C80.67 65 65 80.67 65 100C65 119.33 80.67 135 100 135C119.33 135 135 119.33 135 100" stroke="#F7921E" stroke-width="12" stroke-linecap="round"/>
-              </svg>
-              <span class="text-xs font-bold">Nagad</span>
-            </button>
-
-            <!-- USDT Button with Icon -->
-            <button onclick="selectWithdrawMethod('usdt')" class="p-3 rounded-xl border flex flex-col items-center justify-center gap-1.5 btn-interactive ${userState.selectedMethod === 'usdt' ? 'border-emerald-600 bg-emerald-50 text-emerald-700 font-bold' : 'border-gray-200 text-gray-600'}">
-              <div class="w-8 h-8 rounded-full bg-emerald-500 text-white flex items-center justify-center text-sm font-bold shadow-xs">₮</div>
-              <span class="text-xs font-bold">USDT</span>
-            </button>
-          </div>
-
-          <div class="space-y-3 pt-2">
-            <div>
-              <label class="text-xs text-gray-500 font-bold block mb-1">Account Number / Wallet Address</label>
-              <input id="withdraw-account" type="text" placeholder="Enter number or TRC20 address" class="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 text-sm outline-none focus:border-purple-600 transition" />
+        <!-- RECENT TRANSACTIONS / WITHDRAWAL HISTORY -->
+        <div class="space-y-2 animate-slide-right">
+          <h3 class="font-extrabold text-gray-800 text-sm px-1">Recent Transactions</h3>
+          
+          ${history.length === 0 ? `
+            <div class="bg-white/50 p-8 rounded-2xl border border-dashed border-gray-300 text-center text-gray-400 text-xs font-medium">
+              No withdrawal history yet.
             </div>
-            <div>
-              <label class="text-xs text-gray-500 font-bold block mb-1">Amount (BDT)</label>
-              <input id="withdraw-amount" type="number" placeholder="Min ৳ 500.00" class="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 text-sm outline-none focus:border-purple-600 transition" />
+          ` : `
+            <div class="space-y-2">
+              ${history.map(item => `
+                <div class="bg-white p-3.5 rounded-2xl border border-gray-100 shadow-sm flex items-center justify-between">
+                  <div class="flex items-center space-x-3">
+                    <div class="w-10 h-10 rounded-xl bg-purple-50 text-purple-600 font-bold flex items-center justify-center text-xs">
+                      ${item.method}
+                    </div>
+                    <div>
+                      <p class="font-bold text-xs text-gray-800">${item.account}</p>
+                      <p class="text-[10px] text-gray-400">${item.date}</p>
+                    </div>
+                  </div>
+                  <div class="text-right">
+                    <p class="font-extrabold text-sm text-gray-800">${item.amountText}</p>
+                    <span class="inline-block text-[9px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">${item.status}</span>
+                  </div>
+                </div>
+              `).join('')}
             </div>
-            <button onclick="processWithdraw()" class="w-full btn-gradient text-white font-bold py-3.5 rounded-xl shadow-md btn-interactive">Request Cashout</button>
-          </div>
-        </div>
-
-        <!-- RE-ADDED WITHDRAWAL REQUIREMENTS & RULES SECTION -->
-        <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 space-y-3 animate-slide-left">
-          <div class="flex items-center space-x-2 text-purple-600">
-            <i class="fa-solid fa-triangle-exclamation text-base"></i>
-            <h3 class="font-bold text-gray-800 text-sm">Withdrawal Requirements & Rules</h3>
-          </div>
-          <ul class="space-y-2 text-xs text-gray-600 list-disc pl-4 leading-relaxed">
-            <li>Minimum withdrawal limit is <b>৳ 500.00 ($4.09)</b>.</li>
-            <li>Cashout requests are manually reviewed and processed within <b>24 to 48 hours</b>.</li>
-            <li>Ensure your bKash or Nagad account is active and configured to receive personal cash-in/transfers.</li>
-            <li>Multiple accounts or self-referral attempts will result in an immediate and permanent account suspension.</li>
-            <li>Join our official <a href="https://t.me/TaskPayBDOfficial" target="_blank" class="text-purple-600 underline font-semibold">Payment Proof Channel</a> to see live payout confirmations.</li>
-          </ul>
+          `}
         </div>
       `;
     }
@@ -779,6 +870,21 @@
             <span class="font-bold text-gray-800">${userState.adsWatched} / 10</span>
           </div>
         </div>
+
+        <!-- WITHDRAWAL REQUIREMENTS & RULES MOVED BACK TO PROFILE -->
+        <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 space-y-3 animate-slide-left">
+          <div class="flex items-center space-x-2 text-purple-600">
+            <i class="fa-solid fa-triangle-exclamation text-base"></i>
+            <h3 class="font-bold text-gray-800 text-sm">Withdrawal Requirements & Rules</h3>
+          </div>
+          <ul class="space-y-2 text-xs text-gray-600 list-disc pl-4 leading-relaxed">
+            <li>Minimum withdrawal limit for bKash / Nagad is <b>৳ 1,020.00</b> and USDT is <b>$10.00</b>.</li>
+            <li>Cashout requests are manually reviewed and processed within <b>24 to 48 hours</b>.</li>
+            <li>Ensure your bKash or Nagad account is active and configured to receive personal cash-in/transfers.</li>
+            <li>Multiple accounts or self-referral attempts will result in an immediate and permanent account suspension.</li>
+            <li>Join our official <a href="https://t.me/TaskPayBDOfficial" target="_blank" class="text-purple-600 underline font-semibold">Payment Proof Channel</a> to see live payout confirmations.</li>
+          </ul>
+        </div>
       `;
     }
 
@@ -789,4 +895,4 @@
     });
   </script>
 </body>
-</html>
+  </html>
