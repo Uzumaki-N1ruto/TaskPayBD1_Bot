@@ -542,45 +542,75 @@
 
     // WITHDRAW TAB RENDER
     function renderWithdraw() {
-      const bkashBorder = userState.selectedMethod === 'bkash' ? 'border-2 border-pink-500 bg-pink-50 text-pink-600' : 'border border-gray-200 text-gray-600';
-      const nagadBorder = userState.selectedMethod === 'nagad' ? 'border-2 border-orange-500 bg-orange-50 text-orange-600' : 'border border-gray-200 text-gray-600';
+      const usdBalance = (userState.balance / BDT_PER_USD).toFixed(2);
 
-      const isEligible = userState.balance >= 1020;
+      // SVG Logos
+      const bkashLogo = `<svg class="w-6 h-6 rounded-full flex-shrink-0" viewBox="0 0 100 100" fill="none"><rect width="100" height="100" rx="50" fill="#E2136E"/><path d="M72 32L53 50L75 68H57L44 57L31 68H23L42 50L25 32H41L50 42L60 32H72Z" fill="white"/></svg>`;
+      const nagadLogo = `<svg class="w-6 h-6 rounded-full flex-shrink-0" viewBox="0 0 100 100" fill="none"><rect width="100" height="100" rx="50" fill="#F7921E"/><circle cx="50" cy="50" r="28" stroke="white" stroke-width="8"/><path d="M40 35L60 65M60 35L40 65" stroke="white" stroke-width="6" stroke-linecap="round"/></svg>`;
+      const usdtLogo = `<svg class="w-6 h-6 rounded-full flex-shrink-0" viewBox="0 0 2000 2000"><circle cx="1000" cy="1000" r="1000" fill="#26A17B"/><path d="M1275 802.5v-135H725v135h200v130c-255 12-425 61-425 120s170 108 425 120v255h150v-255c255-12 425-61 425-120s-170-108-425-120v-130h200zm-275 322.5c-193 0-330-34-330-67.5s137-67.5 330-67.5 330 34 330 67.5-137 67.5-330 67.5z" fill="#FFF"/></svg>`;
+
+      const getBtnStyle = (method) => {
+        return userState.selectedMethod === method
+          ? 'border-2 border-purple-600 bg-purple-50/50 text-gray-900 shadow-sm'
+          : 'border border-gray-200 bg-gray-50/50 text-gray-700 hover:bg-gray-100';
+      };
+
+      const isUsdt = userState.selectedMethod === 'usdt';
+      const isEligible = userState.balance >= (10 * BDT_PER_USD);
       
       const buttonStyle = isEligible 
-        ? 'bg-gradient-custom text-white shadow-lg cursor-pointer btn-interactive' 
-        : 'bg-gradient-to-r from-purple-300 via-rose-300 to-orange-200 text-white/90 opacity-80 cursor-not-allowed';
+        ? 'bg-gradient-to-r from-purple-500 via-pink-500 to-orange-400 text-white shadow-lg cursor-pointer btn-interactive' 
+        : 'bg-gray-300 text-gray-500 cursor-not-allowed';
 
       return `
         <div class="bg-gradient-custom rounded-3xl p-5 text-white shadow-lg animate-slide-left">
           <p class="text-xs text-white/80 uppercase">Available Balance</p>
           <h1 class="text-3xl font-extrabold my-1">${fmtCurr(userState.balance)}</h1>
-          <p class="text-xs text-white/90">Min. withdrawal: ${fmtCurr(1020)}</p>
+          <p class="text-xs text-white/90">Min. withdrawal: $10.00</p>
         </div>
 
-        <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 space-y-4 animate-slide-right">
-          <h3 class="font-bold text-gray-800 flex items-center gap-2"><i class="fa-solid fa-download text-purple-600"></i> Request Payout</h3>
+        <div class="bg-white p-5 rounded-3xl shadow-sm border border-gray-100 space-y-5 animate-slide-right">
+          <div class="flex items-center space-x-2 text-purple-800">
+            <i class="fa-solid fa-arrow-down-to-line text-lg"></i>
+            <h3 class="font-extrabold text-lg">Request Payout</h3>
+          </div>
           
           <div>
-            <label class="text-xs text-gray-500 font-bold block mb-2">Payment Method</label>
-            <div class="grid grid-cols-2 gap-3">
-              <button type="button" onclick="setMethod('bkash')" class="${bkashBorder} py-2.5 rounded-xl font-bold flex items-center justify-center gap-2 btn-interactive">bKash</button>
-              <button type="button" onclick="setMethod('nagad')" class="${nagadBorder} py-2.5 rounded-xl font-bold flex items-center justify-center gap-2 btn-interactive">Nagad</button>
+            <label class="text-xs text-gray-800 font-bold block mb-2.5">Payment Method</label>
+            <div class="grid grid-cols-3 gap-2">
+              <button type="button" onclick="setMethod('bkash')" class="${getBtnStyle('bkash')} py-2 px-1 rounded-2xl font-bold flex items-center justify-center gap-1.5 btn-interactive text-xs">
+                ${bkashLogo} <span>bKash</span>
+              </button>
+              <button type="button" onclick="setMethod('nagad')" class="${getBtnStyle('nagad')} py-2 px-1 rounded-2xl font-bold flex items-center justify-center gap-1.5 btn-interactive text-xs">
+                ${nagadLogo} <span>Nagad</span>
+              </button>
+              <button type="button" onclick="setMethod('usdt')" class="${getBtnStyle('usdt')} py-2 px-1 rounded-2xl font-bold flex items-center justify-center gap-1.5 btn-interactive text-xs">
+                ${usdtLogo} <span>USDT</span>
+              </button>
             </div>
           </div>
 
           <div>
-            <label class="text-xs text-gray-500 font-bold block mb-1">Account Number</label>
-            <input type="text" id="withdraw-account" placeholder="01XXXXXXXXX" maxlength="11" class="w-full bg-gray-50 border border-gray-200 p-3 rounded-xl text-sm outline-none focus:border-purple-600">
+            <label class="text-xs text-gray-800 font-bold block mb-2">${isUsdt ? 'Wallet Address' : 'Account Number'}</label>
+            <div class="relative flex items-center">
+              ${isUsdt ? '<span class="absolute left-3.5 text-emerald-600 font-bold text-base">₮</span>' : ''}
+              <input type="text" id="withdraw-account" placeholder="${isUsdt ? 'TXXXXXXXX...0xXXXX...' : '01XXXXXXXXX'}" class="w-full bg-gray-50 border border-gray-100 p-3.5 ${isUsdt ? 'pl-8' : 'pl-4'} rounded-2xl text-sm outline-none focus:border-purple-600 text-gray-800 font-medium">
+            </div>
           </div>
 
           <div>
-            <label class="text-xs text-gray-500 font-bold block mb-1">Amount (Min: ${fmtCurr(1020)})</label>
-            <input type="number" id="withdraw-amount" value="1020" class="w-full bg-gray-50 border border-gray-200 p-3 rounded-xl text-sm outline-none focus:border-purple-600 font-bold">
+            <div class="flex justify-between items-center mb-2">
+              <label class="text-xs text-gray-800 font-bold">Amount in $</label>
+              <span class="text-xs text-gray-400 font-medium">minimum 10$</span>
+            </div>
+            <div class="relative flex items-center">
+              <span class="absolute left-4 text-gray-500 font-bold text-base">$</span>
+              <input type="number" id="withdraw-amount" value="10.00" step="0.01" class="w-full bg-gray-50 border border-gray-100 p-3.5 pl-8 rounded-2xl text-base outline-none focus:border-purple-600 font-extrabold text-gray-800">
+            </div>
           </div>
 
-          <button type="button" ${!isEligible ? 'disabled' : ''} onclick="processWithdrawal()" class="w-full font-bold py-3.5 rounded-xl ${buttonStyle}">
-            Request ${fmtCurr(1020)}
+          <button type="button" ${!isEligible ? 'disabled' : ''} onclick="processWithdrawal()" class="w-full font-bold py-4 rounded-2xl ${buttonStyle} text-base tracking-wide">
+            Request 10$
           </button>
         </div>
       `;
@@ -595,10 +625,16 @@
       const accountInput = document.getElementById('withdraw-account')?.value.trim() || '';
       const amountInput = parseFloat(document.getElementById('withdraw-amount')?.value || '0');
 
-      const mobileRegex = /^01\d{9}$/;
-      if (!mobileRegex.test(accountInput)) return;
-      if (amountInput < 1020) return;
-      if (userState.balance < amountInput) return;
+      if (userState.selectedMethod === 'usdt') {
+        if (!accountInput || accountInput.length < 10) return;
+      } else {
+        const mobileRegex = /^01\d{9}$/;
+        if (!mobileRegex.test(accountInput)) return;
+      }
+
+      if (amountInput < 10) return;
+      const amountInBdt = amountInput * BDT_PER_USD;
+      if (userState.balance < amountInBdt) return;
 
       openVerificationPage();
     }
