@@ -4,9 +4,6 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <title>Bangla Task Hub</title>
-  <meta name="google-adsense-account" content="ca-pub-8286336527830745">
-  <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-8286336527830745"
-       crossorigin="anonymous"></script>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -75,6 +72,14 @@
     const tg = window.Telegram?.WebApp;
     if (tg) tg.expand();
 
+    const BDT_PER_USD = 122.21;
+
+    // Helper to format currency in both BDT and USD ($)
+    function fmtCurr(bdtAmount) {
+      const usdAmount = (bdtAmount / BDT_PER_USD).toFixed(2);
+      return `৳ ${bdtAmount.toFixed(2)} ($${usdAmount})`;
+    }
+
     // Generate random 10-digit number for ID if missing
     function generate10DigitId() {
       return Math.floor(1000000000 + Math.random() * 9000000000).toString();
@@ -108,6 +113,7 @@
       activeReferTab: 'leaderboard',
       myReferralsList: [],
       selectedMethod: 'bkash',
+      showRulesModal: false,
       tasks: {
         welcome: { title: 'Welcome bonus', reward: 50.00, link: 'https://t.me/TaskPayBDTasks', status: 'join', category: 'JOIN BONUS', type: 'tg', icon: 'telegram' },
         proof: { title: 'Payment Proof Channel', reward: 20.00, link: 'https://t.me/TaskPayBDOfficial', status: 'join', category: 'TELEGRAM', type: 'tg', icon: 'telegram' },
@@ -142,20 +148,16 @@
     function switchTab(tab) {
       const app = document.getElementById('app-content');
       
-      // Update nav button states
       const tabs = ['home', 'earn', 'refer', 'withdraw', 'profile'];
       tabs.forEach(t => {
         const btn = document.getElementById(`nav-${t}`);
         if (btn) {
-          if (t === tab) {
-            btn.className = 'flex flex-col items-center text-purple-600 text-xs font-medium btn-interactive';
-          } else {
-            btn.className = 'flex flex-col items-center text-gray-400 text-xs font-medium btn-interactive';
-          }
+          btn.className = (t === tab)
+            ? 'flex flex-col items-center text-purple-600 text-xs font-medium btn-interactive'
+            : 'flex flex-col items-center text-gray-400 text-xs font-medium btn-interactive';
         }
       });
 
-      // Render view based on active tab
       if (tab === 'home') app.innerHTML = renderHome();
       else if (tab === 'earn') app.innerHTML = renderEarn();
       else if (tab === 'refer') app.innerHTML = renderRefer();
@@ -180,8 +182,8 @@
             ${renderAvatar(user.photo_url, user.first_name)}
           </div>
           <p class="text-xs text-white/80 font-medium uppercase tracking-wider">Total Balance</p>
-          <p class="text-4xl font-extrabold my-1">৳ ${userState.balance.toFixed(2)}</p>
-          <p class="text-xs text-white/90">📈 Total earned: ৳ ${userState.totalEarned.toFixed(2)}</p>
+          <p class="text-3xl font-extrabold my-1">${fmtCurr(userState.balance)}</p>
+          <p class="text-xs text-white/90">📈 Total earned: ${fmtCurr(userState.totalEarned)}</p>
         </div>
 
         <div class="grid grid-cols-2 gap-3 animate-slide-right">
@@ -196,7 +198,7 @@
             <div class="w-10 h-10 rounded-xl bg-red-100 text-red-500 flex items-center justify-center"><i class="fa-solid fa-user-plus"></i></div>
             <div>
               <p class="font-bold text-sm">Refer</p>
-              <p class="text-xs text-gray-400">৳ 50.00 / friend</p>
+              <p class="text-xs text-gray-400">${fmtCurr(50)} / friend</p>
             </div>
           </div>
         </div>
@@ -227,12 +229,11 @@
           </div>
           <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100">
             <div class="w-8 h-8 rounded-full bg-pink-50 text-pink-500 flex items-center justify-center mb-2"><i class="fa-solid fa-trophy text-sm"></i></div>
-            <p class="text-2xl font-bold text-gray-800">৳ ${userState.totalEarned.toFixed(2)}</p>
+            <p class="text-lg font-bold text-gray-800">${fmtCurr(userState.totalEarned)}</p>
             <p class="text-xs text-gray-400 font-medium">Total Earned</p>
           </div>
         </div>
 
-        <!-- HOW TO EARN SECTION -->
         <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 space-y-3 animate-slide-left">
           <div class="flex items-center space-x-2">
             <span class="text-xl">🎁</span>
@@ -249,7 +250,7 @@
             </li>
             <li class="flex items-start gap-2.5">
               <span class="w-5 h-5 bg-purple-600 text-white rounded-full flex items-center justify-center font-bold text-[10px] flex-shrink-0 mt-0.5">3</span>
-              <span>Invite friends with your referral link and get ৳ 50.00 each.</span>
+              <span>Invite friends with your referral link and get ${fmtCurr(50)} each.</span>
             </li>
           </ol>
         </div>
@@ -263,7 +264,7 @@
           <p class="text-xs text-white/80 uppercase tracking-wider">Daily Ads</p>
           <div class="flex justify-between items-baseline my-1">
             <h1 class="text-3xl font-extrabold">Earn</h1>
-            <span class="text-sm">Today's reward: <b class="text-lg">৳ 10.00</b> / ad</span>
+            <span class="text-xs">Today's reward: <b class="text-sm">${fmtCurr(10)}</b> / ad</span>
           </div>
         </div>
 
@@ -312,7 +313,7 @@
             <div>
               <p class="font-bold text-sm">${task.title}</p>
               <div class="flex items-center gap-2 mt-0.5">
-                <span class="bg-purple-100 text-purple-600 text-[10px] font-bold px-2 py-0.5 rounded-md">+৳ ${task.reward.toFixed(2)}</span>
+                <span class="bg-purple-100 text-purple-600 text-[10px] font-bold px-2 py-0.5 rounded-md">+${fmtCurr(task.reward)}</span>
                 <span class="bg-gray-100 text-gray-500 text-[9px] font-bold px-1.5 py-0.5 rounded uppercase">${task.category}</span>
               </div>
             </div>
@@ -374,7 +375,7 @@
             <i class="fa-solid fa-user-plus"></i>
           </div>
           <h2 class="text-2xl font-extrabold tracking-tight">Invite & Earn</h2>
-          <p class="text-xs text-white/90 mt-1 font-medium">Get <b class="text-white">৳ 50.00</b> for every friend who joins</p>
+          <p class="text-xs text-white/90 mt-1 font-medium">Get <b class="text-white">${fmtCurr(50)}</b> for every friend who joins</p>
           
           <div class="mt-4 bg-white/20 p-1.5 pl-4 rounded-full flex items-center justify-between text-xs backdrop-blur-md border border-white/20 shadow-inner">
             <span class="truncate pr-2 font-mono text-[11px] text-white/90">${botReferralLink}</span>
@@ -396,7 +397,7 @@
           </div>
           <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 text-center">
             <p class="text-xs text-gray-400 font-medium">Total Earned</p>
-            <p class="text-3xl font-extrabold text-purple-600 my-1">৳ ${totalReferralEarnings.toFixed(2)}</p>
+            <p class="text-sm font-extrabold text-purple-600 my-1">${fmtCurr(totalReferralEarnings)}</p>
           </div>
         </div>
 
@@ -482,7 +483,7 @@
                   <p class="text-[11px] text-gray-400">Joined ${ref.date}</p>
                 </div>
               </div>
-              <span class="btn-gradient text-white px-3 py-1 rounded-full text-xs font-extrabold shadow-sm">+৳ 50.00</span>
+              <span class="btn-gradient text-white px-3 py-1 rounded-full text-xs font-extrabold shadow-sm">+${fmtCurr(50)}</span>
             </div>
           `).join('')}
         </div>
@@ -515,10 +516,8 @@
       const bkashBorder = userState.selectedMethod === 'bkash' ? 'border-2 border-pink-500 bg-pink-50 text-pink-600' : 'border border-gray-200 text-gray-600';
       const nagadBorder = userState.selectedMethod === 'nagad' ? 'border-2 border-orange-500 bg-orange-50 text-orange-600' : 'border border-gray-200 text-gray-600';
 
-      // Check if user balance is lower than 1020
       const isEligible = userState.balance >= 1020;
       
-      // Grayed-out style vs Active style matching user image
       const buttonStyle = isEligible 
         ? 'bg-gradient-custom text-white shadow-lg cursor-pointer btn-interactive' 
         : 'bg-gradient-to-r from-purple-300 via-rose-300 to-orange-200 text-white/90 opacity-80 cursor-not-allowed';
@@ -526,8 +525,8 @@
       return `
         <div class="bg-gradient-custom rounded-3xl p-5 text-white shadow-lg animate-slide-left">
           <p class="text-xs text-white/80 uppercase">Available Balance</p>
-          <h1 class="text-4xl font-extrabold my-1">৳ ${userState.balance.toFixed(2)}</h1>
-          <p class="text-xs text-white/90">Min. withdrawal: ৳ 1,020.00</p>
+          <h1 class="text-3xl font-extrabold my-1">${fmtCurr(userState.balance)}</h1>
+          <p class="text-xs text-white/90">Min. withdrawal: ${fmtCurr(1020)}</p>
         </div>
 
         <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 space-y-4 animate-slide-right">
@@ -547,12 +546,12 @@
           </div>
 
           <div>
-            <label class="text-xs text-gray-500 font-bold block mb-1">Amount (Min: ৳ 1,020.00)</label>
+            <label class="text-xs text-gray-500 font-bold block mb-1">Amount (Min: ${fmtCurr(1020)})</label>
             <input type="number" id="withdraw-amount" value="1020" class="w-full bg-gray-50 border border-gray-200 p-3 rounded-xl text-sm outline-none focus:border-purple-600 font-bold">
           </div>
 
           <button type="button" ${!isEligible ? 'disabled' : ''} onclick="processWithdrawal()" class="w-full font-bold py-3.5 rounded-xl ${buttonStyle}">
-            Request ৳ 1,020.00
+            Request ${fmtCurr(1020)}
           </button>
         </div>
       `;
@@ -567,23 +566,11 @@
       const accountInput = document.getElementById('withdraw-account')?.value.trim() || '';
       const amountInput = parseFloat(document.getElementById('withdraw-amount')?.value || '0');
 
-      // Validation 1: Must start with 01 and be exactly 11 digits
       const mobileRegex = /^01\d{9}$/;
-      if (!mobileRegex.test(accountInput)) {
-        return;
-      }
+      if (!mobileRegex.test(accountInput)) return;
+      if (amountInput < 1020) return;
+      if (userState.balance < amountInput) return;
 
-      // Validation 2: Amount must be >= 1020
-      if (amountInput < 1020) {
-        return;
-      }
-
-      // Validation 3: User must have sufficient balance
-      if (userState.balance < amountInput) {
-        return;
-      }
-
-      // Automatically transitions directly to Verification Page Screen
       openVerificationPage();
     }
 
@@ -591,7 +578,6 @@
       const app = document.getElementById('app-content');
       app.innerHTML = `
         <div class="bg-white rounded-3xl p-5 shadow-lg border border-gray-100 space-y-4 animate-slide-left">
-          <!-- Header -->
           <div class="flex justify-between items-center border-b pb-3">
             <div class="flex items-center space-x-2">
               <div class="w-7 h-7 rounded-full bg-purple-100 text-purple-600 flex items-center justify-center">
@@ -602,7 +588,6 @@
             <button onclick="switchTab('withdraw')" class="text-gray-400 hover:text-gray-600 text-lg font-bold btn-interactive">✕</button>
           </div>
 
-          <!-- Instructions Box -->
           <div class="bg-purple-50/60 p-4 rounded-2xl border border-purple-100 text-xs space-y-2 text-purple-900">
             <p class="font-medium">To complete your withdrawal, please verify your USDT transaction.</p>
             <div class="flex items-center gap-1.5 font-bold text-gray-800">
@@ -620,7 +605,6 @@
             </ul>
           </div>
 
-          <!-- Address Box -->
           <div class="bg-gray-50 p-4 rounded-2xl border border-gray-200 flex items-center justify-between">
             <div class="flex items-center space-x-3 truncate">
               <div class="w-10 h-10 rounded-full bg-emerald-500 text-white flex items-center justify-center font-bold text-lg flex-shrink-0">T</div>
@@ -638,7 +622,6 @@
             Please send the exact amount of USDT to the above wallet address — this is only for verification.
           </p>
 
-          <!-- Input Form -->
           <div class="space-y-3 pt-1">
             <label class="text-xs font-bold text-gray-800 block">Where did you send USDT from?</label>
             <div class="bg-emerald-600 text-white font-bold py-2.5 px-4 rounded-full text-xs inline-flex items-center gap-2 shadow-sm">
@@ -713,7 +696,7 @@
             <div class="w-6 h-6 rounded-full bg-purple-100 flex items-center justify-center">
               <div class="w-2.5 h-2.5 rounded-full bg-purple-600"></div>
             </div>
-            <p class="text-base font-extrabold text-purple-700">৳ ${userState.balance.toFixed(2)}</p>
+            <p class="text-xs font-extrabold text-purple-700">${fmtCurr(userState.balance)}</p>
             <p class="text-[11px] text-gray-400 font-medium">Balance</p>
           </div>
 
@@ -722,7 +705,7 @@
             <div class="w-6 h-6 rounded-full bg-emerald-100 flex items-center justify-center">
               <i class="fa-solid fa-arrow-down-long text-[10px] text-emerald-600"></i>
             </div>
-            <p class="text-base font-extrabold text-emerald-600">৳ ${userState.withdrawn.toFixed(2)}</p>
+            <p class="text-xs font-extrabold text-emerald-600">${fmtCurr(userState.withdrawn)}</p>
             <p class="text-[11px] text-gray-400 font-medium">Withdrawn</p>
           </div>
 
@@ -736,23 +719,38 @@
           </div>
         </div>
 
-        <!-- APP RULES CARD -->
-        <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 space-y-3 animate-slide-left">
-          <div class="flex items-center space-x-2">
-            <div class="w-7 h-7 rounded-full bg-purple-100 text-purple-600 flex items-center justify-center">
-              <i class="fa-solid fa-shield-halved text-sm"></i>
+        <!-- APP RULES BUTTON & CARD -->
+        <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 space-y-3 animate-slide-left">
+          <button onclick="toggleRules()" class="w-full bg-gradient-to-r from-purple-50 to-pink-50 border border-purple-200 text-purple-700 p-3 rounded-xl font-bold text-sm flex items-center justify-between btn-interactive">
+            <div class="flex items-center space-x-2">
+              <i class="fa-solid fa-book-bookmark text-purple-600"></i>
+              <span>App Rules & Guidelines</span>
             </div>
-            <h3 class="font-bold text-gray-800 text-base">App Rules</h3>
-          </div>
-          <p class="text-xs text-gray-500 leading-relaxed">
-            Please follow our mini app terms & rules. Multiple accounts, fake referrals, or abusing tasks will result in a permanent ban and forfeiture of balance.
-          </p>
+            <i class="fa-solid ${userState.showRulesModal ? 'fa-chevron-up' : 'fa-chevron-down'} text-xs"></i>
+          </button>
+
+          ${userState.showRulesModal ? `
+            <div class="p-3 bg-purple-50/50 rounded-xl border border-purple-100 text-xs text-gray-600 space-y-2">
+              <p class="font-semibold text-purple-900">📌 Mandatory Terms & Guidelines:</p>
+              <ul class="list-disc pl-4 space-y-1">
+                <li>Multiple accounts or self-referrals are strictly prohibited.</li>
+                <li>Fake tasks or abusing rewarded video ads will lead to immediate ban.</li>
+                <li>Ensure accurate mobile financial service numbers during withdrawal.</li>
+                <li>Verification procedure is mandatory for processing payout requests.</li>
+              </ul>
+            </div>
+          ` : ''}
         </div>
       `;
+    }
+
+    function toggleRules() {
+      userState.showRulesModal = !userState.showRulesModal;
+      switchTab('profile');
     }
 
     // INITIAL LOAD
     switchTab('home');
   </script>
 </body>
-  </html>
+</html>
