@@ -535,10 +535,39 @@
 
     // WITHDRAW TAB RENDER
     function renderWithdraw() {
-      // SVG Logos
-      const bkashLogo = `<svg class="w-6 h-6 rounded-full flex-shrink-0" viewBox="0 0 100 100" fill="none"><rect width="100" height="100" rx="50" fill="#E2136E"/><path d="M72 32L53 50L75 68H57L44 57L31 68H23L42 50L25 32H41L50 42L60 32H72Z" fill="white"/></svg>`;
-      const nagadLogo = `<svg class="w-6 h-6 rounded-full flex-shrink-0" viewBox="0 0 100 100" fill="none"><rect width="100" height="100" rx="50" fill="#F7921E"/><circle cx="50" cy="50" r="28" stroke="white" stroke-width="8"/><path d="M40 35L60 65M60 35L40 65" stroke="white" stroke-width="6" stroke-linecap="round"/></svg>`;
-      const usdtLogo = `<svg class="w-6 h-6 rounded-full flex-shrink-0" viewBox="0 0 2000 2000"><circle cx="1000" cy="1000" r="1000" fill="#26A17B"/><path d="M1275 802.5v-135H725v135h200v130c-255 12-425 61-425 120s170 108 425 120v255h150v-255c255-12 425-61 425-120s-170-108-425-120v-130h200zm-275 322.5c-193 0-330-34-330-67.5s137-67.5 330-67.5 330 34 330 67.5-137 67.5-330 67.5z" fill="#FFF"/></svg>`;
+      // Authentic bKash SVG (Origami Bird vector)
+      const bkashLogo = `
+        <svg class="w-6 h-6 rounded-full flex-shrink-0 shadow-sm" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="50" cy="50" r="50" fill="#E2136E"/>
+          <path d="M18 36L58 18L88 42L52 58L18 36Z" fill="white"/>
+          <path d="M52 58L88 42L66 84L52 58Z" fill="#FFB6C1"/>
+          <path d="M18 36L52 58L32 78L18 36Z" fill="white"/>
+          <path d="M52 58L66 84L48 72L52 58Z" fill="#E2136E"/>
+        </svg>
+      `;
+
+      // Authentic Nagad SVG (Gradient Swirl vector)
+      const nagadLogo = `
+        <svg class="w-6 h-6 rounded-full flex-shrink-0 shadow-sm" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="50" cy="50" r="50" fill="url(#nagadGradient)"/>
+          <defs>
+            <linearGradient id="nagadGradient" x1="0" y1="0" x2="100" y2="100" gradientUnits="userSpaceOnUse">
+              <stop stop-color="#F7921E"/>
+              <stop offset="1" stop-color="#E83828"/>
+            </linearGradient>
+          </defs>
+          <path d="M30 68 C22 58 22 42 32 32 C42 22 58 22 68 32 C78 42 78 58 68 68 C62 74 52 76 44 72 L38 82 C50 88 66 86 76 76 C90 62 90 38 76 24 C62 10 38 10 24 24 C10 38 10 62 24 76 L30 68 Z" fill="white"/>
+          <circle cx="50" cy="50" r="9" fill="white"/>
+        </svg>
+      `;
+
+      // Authentic Tether (USDT) SVG
+      const usdtLogo = `
+        <svg class="w-6 h-6 rounded-full flex-shrink-0 shadow-sm" viewBox="0 0 2000 2000">
+          <circle cx="1000" cy="1000" r="1000" fill="#26A17B"/>
+          <path d="M1275 802.5v-135H725v135h200v130c-255 12-425 61-425 120s170 108 425 120v255h150v-255c255-12 425-61 425-120s-170-108-425-120v-130h200zm-275 322.5c-193 0-330-34-330-67.5s137-67.5 330-67.5 330 34 330 67.5-137 67.5-330 67.5z" fill="#FFF"/>
+        </svg>
+      `;
 
       const getBtnStyle = (method) => {
         return userState.selectedMethod === method
@@ -572,13 +601,13 @@
           <div>
             <label class="text-xs text-gray-800 font-bold block mb-2.5">Payment Method</label>
             <div class="grid grid-cols-3 gap-2">
-              <button type="button" onclick="setMethod('bkash')" class="${getBtnStyle('bkash')} py-2 px-1 rounded-2xl font-bold flex items-center justify-center gap-1.5 btn-interactive text-xs">
+              <button type="button" onclick="setMethod('bkash')" class="${getBtnStyle('bkash')} py-2.5 px-1 rounded-2xl font-bold flex items-center justify-center gap-1.5 btn-interactive text-xs">
                 ${bkashLogo} <span>bKash</span>
               </button>
-              <button type="button" onclick="setMethod('nagad')" class="${getBtnStyle('nagad')} py-2 px-1 rounded-2xl font-bold flex items-center justify-center gap-1.5 btn-interactive text-xs">
+              <button type="button" onclick="setMethod('nagad')" class="${getBtnStyle('nagad')} py-2.5 px-1 rounded-2xl font-bold flex items-center justify-center gap-1.5 btn-interactive text-xs">
                 ${nagadLogo} <span>Nagad</span>
               </button>
-              <button type="button" onclick="setMethod('usdt')" class="${getBtnStyle('usdt')} py-2 px-1 rounded-2xl font-bold flex items-center justify-center gap-1.5 btn-interactive text-xs">
+              <button type="button" onclick="setMethod('usdt')" class="${getBtnStyle('usdt')} py-2.5 px-1 rounded-2xl font-bold flex items-center justify-center gap-1.5 btn-interactive text-xs">
                 ${usdtLogo} <span>USDT</span>
               </button>
             </div>
