@@ -76,8 +76,8 @@
     if (tg) tg.expand();
 
     const BDT_PER_USD = 122.21;
+    const STORAGE_KEY = 'taskpay_user_state_v1';
 
-    // Helper to format currency in both BDT and USD ($)
     function fmtCurr(bdtAmount) {
       const usdAmount = (bdtAmount / BDT_PER_USD).toFixed(2);
       return `৳ ${bdtAmount.toFixed(2)} ($${usdAmount})`;
@@ -115,8 +115,9 @@
       "https://youtube.com/shorts/u49VfbSJ8-o?si=rKqtyg1gVMitdY0g",
       "https://youtube.com/shorts/XUXIstcmVuw?si=sEjXEGGMsIKzQ4iq"
     ];
-    
-    const userState = {
+
+    // Default Initial User State
+    const defaultState = {
       balance: 0.00,
       withdrawn: 0.00,
       totalEarned: 0.00,
@@ -128,6 +129,7 @@
       currentTab: 'home',
       isWatchingAd: false,
       adTimer: 25,
+      joinedDate: getJoinedDateFormatted(),
       tasks: {
         welcome: { title: 'Welcome bonus', reward: 50.00, link: 'https://t.me/TaskPayBDTasks', status: 'join', category: 'JOIN BONUS', type: 'tg', icon: 'telegram' },
         proof: { title: 'Payment Proof Channel', reward: 20.00, link: 'https://t.me/TaskPayBDOfficial', status: 'join', category: 'TELEGRAM', type: 'tg', icon: 'telegram' },
@@ -135,6 +137,30 @@
         official: { title: 'Official Channel', reward: 20.00, link: 'https://t.me/TaskPayBDUpdates', status: 'join', category: 'TELEGRAM', type: 'tg', icon: 'telegram' }
       }
     };
+
+    // Load from LocalStorage or Use Defaults
+    let userState = loadState();
+
+    function saveState() {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(userState));
+      } catch (e) {
+        console.error("Failed to save state to localStorage", e);
+      }
+    }
+
+    function loadState() {
+      try {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          return { ...defaultState, ...parsed, isWatchingAd: false, adTimer: 25 };
+        }
+      } catch (e) {
+        console.error("Failed to load state", e);
+      }
+      return defaultState;
+    }
 
     const defaultLeaderboard = [
       { name: "Jannat", count: 4993, avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80" },
@@ -158,8 +184,10 @@
     }
 
     function switchTab(tab) {
-      if (userState.isWatchingAd) return; // Lock tab navigation during ad count
+      if (userState.isWatchingAd) return;
       userState.currentTab = tab;
+      saveState();
+
       const app = document.getElementById('app-content');
       
       const tabs = ['home', 'earn', 'refer', 'withdraw', 'profile'];
@@ -337,17 +365,14 @@
       `;
     }
 
-    // AD WATCHING & POPUP LOGIC WITH 25s LOCKOUT
     function watchAd() {
       if (userState.adsWatched >= 10 || availableAdLinks.length === 0 || userState.isWatchingAd) return;
 
       const randomIndex = Math.floor(Math.random() * availableAdLinks.length);
       const selectedUrl = availableAdLinks[randomIndex];
 
-      // Open ad link in new tab
       window.open(selectedUrl, '_blank');
 
-      // Set lock state & timer
       userState.isWatchingAd = true;
       userState.adTimer = 25;
 
@@ -359,12 +384,12 @@
           updateAdModalTimer();
         } else {
           clearInterval(timerInterval);
-          // Credit rewards after full timer completion
           userState.adsWatched += 1;
           userState.balance += 10.00;
           userState.totalEarned += 10.00;
           userState.isWatchingAd = false;
 
+          saveState();
           closeModal();
           switchTab(userState.currentTab);
         }
@@ -378,26 +403,16 @@
       modalContainer.innerHTML = `
         <div class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-6 select-none pointer-events-auto">
           <div class="bg-white rounded-3xl p-6 w-full max-w-xs text-center shadow-2xl relative overflow-hidden animate-slide-left">
-            
-            <!-- Icon -->
             <div class="w-16 h-16 rounded-2xl bg-gradient-to-tr from-purple-600 to-pink-500 flex items-center justify-center mx-auto text-white text-2xl shadow-md mb-4">
               <i class="fa-regular fa-clock"></i>
             </div>
-
-            <!-- Title in Bengali -->
             <h2 class="text-xl font-bold text-gray-800 mb-2">এড দেখছেন...</h2>
-
-            <!-- Countdown Text -->
             <p class="text-sm text-gray-600 font-medium mb-5">
               Reward পেতে আরো <b id="ad-seconds-text" class="text-lg text-purple-700 font-extrabold">${userState.adTimer}s</b>
             </p>
-
-            <!-- Progress Bar -->
             <div class="w-full bg-gray-100 rounded-full h-2.5 mb-5 overflow-hidden">
               <div id="ad-progress-bar" class="bg-gradient-to-r from-purple-600 to-pink-500 h-full rounded-full transition-all duration-1000 ease-linear" style="width: ${progressPercent}%"></div>
             </div>
-
-            <!-- Warning Footer -->
             <p class="text-[11px] text-gray-400 font-medium leading-tight">
               এখন বন্ধ করবেন না — আগে বন্ধ করলে reward পাবেন না।
             </p>
@@ -430,17 +445,20 @@
           window.open(task.link, '_blank');
         }
         task.status = 'claim';
+        saveState();
         switchTab('earn');
       } else if (task.status === 'claim') {
         task.status = 'done';
         userState.balance += task.reward;
         userState.totalEarned += task.reward;
+        saveState();
         switchTab('earn');
       }
     }
 
     function renderRefer() {
-      const botReferralLink = `https://t.me/TaskPayBD_Bot?start=${user.id}`;
+      // Direct referral link targeting your bot
+      const botReferralLink = `https://t.me/TaskPayBD1_Bot?start=${user.id}`;
       const totalReferralEarnings = userState.referrals * 50.00;
 
       let currentBoard = [...defaultLeaderboard];
@@ -581,6 +599,7 @@
     function setReferTab(tab) {
       if (userState.isWatchingAd) return;
       userState.activeReferTab = tab;
+      saveState();
       switchTab('refer');
     }
 
@@ -588,6 +607,8 @@
       navigator.clipboard.writeText(link);
       if (tg?.showPopup) {
         tg.showPopup({ title: 'Success', message: 'Referral link copied to clipboard!', buttons: [{ type: 'ok' }] });
+      } else {
+        alert('Referral link copied to clipboard!');
       }
     }
 
@@ -600,235 +621,113 @@
       }
     }
 
-    function renderWithdraw() {
-      const bkashLogo = `
-        <svg class="w-6 h-6 rounded-full flex-shrink-0 shadow-sm" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <circle cx="50" cy="50" r="50" fill="#E2136E"/>
-          <path d="M18 36L58 18L88 42L52 58L18 36Z" fill="white"/>
-          <path d="M52 58L88 42L66 84L52 58Z" fill="#FFB6C1"/>
-          <path d="M18 36L52 58L32 78L18 36Z" fill="white"/>
-          <path d="M52 58L66 84L48 72L52 58Z" fill="#E2136E"/>
-        </svg>
-      `;
-
-      const nagadLogo = `
-        <svg class="w-6 h-6 rounded-full flex-shrink-0 shadow-sm" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <circle cx="50" cy="50" r="50" fill="url(#nagadGradient)"/>
-          <defs>
-            <linearGradient id="nagadGradient" x1="0" y1="0" x2="100" y2="100" gradientUnits="userSpaceOnUse">
-              <stop stop-color="#F7921E"/>
-              <stop offset="1" stop-color="#E83828"/>
-            </linearGradient>
-          </defs>
-          <path d="M30 68 C22 58 22 42 32 32 C42 22 58 22 68 32 C78 42 78 58 68 68 C62 74 52 76 44 72 L38 82 C50 88 66 86 76 76 C90 62 90 38 76 24 C62 10 38 10 24 24 C10 38 10 62 24 76 L30 68 Z" fill="white"/>
-          <circle cx="50" cy="50" r="9" fill="white"/>
-        </svg>
-      `;
-
-      const usdtLogo = `
-        <svg class="w-6 h-6 rounded-full flex-shrink-0 shadow-sm" viewBox="0 0 2000 2000">
-          <circle cx="1000" cy="1000" r="1000" fill="#26A17B"/>
-          <path d="M1275 802.5v-135H725v135h200v130c-255 12-425 61-425 120s170 108 425 120v255h150v-255c255-12 425-61 425-120s-170-108-425-120v-130h200zm-275 322.5c-193 0-330-34-330-67.5s137-67.5 330-67.5 330 34 330 67.5-137 67.5-330 67.5z" fill="#FFF"/>
-        </svg>
-      `;
-
-      const getBtnStyle = (method) => {
-        return userState.selectedMethod === method
-          ? 'border-2 border-purple-600 bg-purple-50/50 text-gray-900 shadow-sm'
-          : 'border border-gray-200 bg-gray-50/50 text-gray-700 hover:bg-gray-100';
-      };
-
-      const isUsdt = userState.selectedMethod === 'usdt';
-      const requiredBdt = isUsdt ? (10 * BDT_PER_USD) : 1020;
-      const isEligible = userState.balance >= requiredBdt;
-      
-      const buttonStyle = isEligible 
-        ? 'bg-gradient-to-r from-purple-500 via-pink-500 to-orange-400 text-white shadow-lg cursor-pointer btn-interactive' 
-        : 'bg-gray-300 text-gray-500 cursor-not-allowed';
-
-      return `
-        <div class="bg-gradient-custom rounded-3xl p-5 text-white shadow-lg animate-slide-left">
-          <p class="text-xs text-white/80 uppercase">Available Balance</p>
-          <h1 class="text-3xl font-extrabold my-1">${fmtCurr(userState.balance)}</h1>
-          <p class="text-xs text-white/90">Min. withdrawal: 1020 ৳</p>
-        </div>
-
-        <div class="bg-white p-5 rounded-3xl shadow-sm border border-gray-100 space-y-5 animate-slide-right">
-          <div class="flex items-center space-x-2 text-purple-800">
-            <i class="fa-solid fa-arrow-down-to-line text-lg"></i>
-            <h3 class="font-extrabold text-lg">Request Payout</h3>
-          </div>
-          
-          <div>
-            <label class="text-xs text-gray-800 font-bold block mb-2.5">Payment Method</label>
-            <div class="grid grid-cols-3 gap-2">
-              <button type="button" onclick="setMethod('bkash')" class="${getBtnStyle('bkash')} py-2.5 px-1 rounded-2xl font-bold flex items-center justify-center gap-1.5 btn-interactive text-xs">
-                ${bkashLogo} <span>bKash</span>
-              </button>
-              <button type="button" onclick="setMethod('nagad')" class="${getBtnStyle('nagad')} py-2.5 px-1 rounded-2xl font-bold flex items-center justify-center gap-1.5 btn-interactive text-xs">
-                ${nagadLogo} <span>Nagad</span>
-              </button>
-              <button type="button" onclick="setMethod('usdt')" class="${getBtnStyle('usdt')} py-2.5 px-1 rounded-2xl font-bold flex items-center justify-center gap-1.5 btn-interactive text-xs">
-                ${usdtLogo} <span>USDT</span>
-              </button>
-            </div>
-          </div>
-
-          <div>
-            <label class="text-xs text-gray-800 font-bold block mb-2">${isUsdt ? 'Wallet Address' : 'Account Number'}</label>
-            <div class="relative flex items-center">
-              ${isUsdt ? '<span class="absolute left-3.5 text-emerald-600 font-bold text-base">₮</span>' : ''}
-              <input type="text" id="withdraw-account" placeholder="${isUsdt ? 'TXXXXXXXX...0xXXXX...' : '01XXXXXXXXX'}" class="w-full bg-gray-50 border border-gray-100 p-3.5 ${isUsdt ? 'pl-8' : 'pl-4'} rounded-2xl text-sm outline-none focus:border-purple-600 text-gray-800 font-medium">
-            </div>
-          </div>
-
-          <div>
-            <div class="flex justify-between items-center mb-2">
-              <label class="text-xs text-gray-800 font-bold">${isUsdt ? 'Amount in $' : 'Amount in ৳'}</label>
-              <span class="text-xs text-gray-400 font-medium">${isUsdt ? 'minimum 10$' : 'minimum 1020 ৳'}</span>
-            </div>
-            <div class="relative flex items-center">
-              <span class="absolute left-4 text-gray-500 font-bold text-base">${isUsdt ? '$' : '৳'}</span>
-              <input type="number" id="withdraw-amount" value="${isUsdt ? '10.00' : '1020'}" step="${isUsdt ? '0.01' : '1'}" class="w-full bg-gray-50 border border-gray-100 p-3.5 pl-8 rounded-2xl text-base outline-none focus:border-purple-600 font-extrabold text-gray-800">
-            </div>
-          </div>
-
-          <button type="button" ${!isEligible ? 'disabled' : ''} onclick="processWithdrawal()" class="w-full font-bold py-4 rounded-2xl ${buttonStyle} text-base tracking-wide">
-            ${isUsdt ? 'Request 10$' : 'Request 1020 ৳'}
-          </button>
-        </div>
-      `;
-    }
-
-    function setMethod(method) {
-      if (userState.isWatchingAd) return;
+    function selectWithdrawMethod(method) {
       userState.selectedMethod = method;
+      saveState();
       switchTab('withdraw');
     }
 
-    function processWithdrawal() {
-      if (userState.isWatchingAd) return;
-      const accountInput = document.getElementById('withdraw-account')?.value.trim() || '';
-      const amountInput = parseFloat(document.getElementById('withdraw-amount')?.value || '0');
+    function processWithdraw() {
+      const amount = parseFloat(document.getElementById('withdraw-amount')?.value || 0);
+      const num = document.getElementById('withdraw-account')?.value || '';
 
-      if (userState.selectedMethod === 'usdt') {
-        if (!accountInput || accountInput.length < 10) return;
-        if (amountInput < 10) return;
-        const amountInBdt = amountInput * BDT_PER_USD;
-        if (userState.balance < amountInBdt) return;
-      } else {
-        const mobileRegex = /^01\d{9}$/;
-        if (!mobileRegex.test(accountInput)) return;
-        if (amountInput < 1020) return;
-        if (userState.balance < amountInput) return;
+      if (!num) {
+        alert('Please enter account number.');
+        return;
+      }
+      if (isNaN(amount) || amount < 500) {
+        alert('Minimum withdrawal is ৳ 500.00');
+        return;
+      }
+      if (amount > userState.balance) {
+        alert('Insufficient balance.');
+        return;
       }
 
-      openVerificationPage();
+      userState.balance -= amount;
+      userState.withdrawn += amount;
+      saveState();
+
+      alert(`Withdrawal request for ${fmtCurr(amount)} via ${userState.selectedMethod.toUpperCase()} submitted successfully!`);
+      switchTab('withdraw');
     }
 
-    function openVerificationPage() {
-      const app = document.getElementById('app-content');
-      app.innerHTML = `
-        <div class="bg-white rounded-3xl p-5 shadow-lg border border-gray-100 space-y-4 animate-slide-left">
-          <div class="flex justify-between items-center border-b pb-3">
-            <div class="flex items-center space-x-2">
-              <div class="w-7 h-7 rounded-full bg-purple-100 text-purple-600 flex items-center justify-center">
-                <i class="fa-solid fa-shield-halved text-sm"></i>
-              </div>
-              <h2 class="text-base font-extrabold text-gray-800">Verify Transaction</h2>
-            </div>
-            <button onclick="switchTab('withdraw')" class="text-gray-400 hover:text-gray-600 text-lg font-bold btn-interactive">✕</button>
-          </div>
-
-          <div class="bg-purple-50/60 p-4 rounded-2xl border border-purple-100 text-xs space-y-2 text-purple-900">
-            <p class="font-medium">To complete your withdrawal, please verify your transaction details.</p>
-            <div class="flex items-center gap-1.5 font-bold text-gray-800">
-              <span class="w-4 h-4 bg-emerald-500 text-white rounded-full flex items-center justify-center text-[10px]">✓</span>
-              <span>Minimum Payout Satisfied</span>
-            </div>
-            <ul class="list-disc pl-4 space-y-1 text-gray-600 pt-1">
-              <li>Ensure your details are accurate before proceeding.</li>
-              <li>Once submitted, processing takes a few moments.</li>
-            </ul>
-          </div>
-
-          <div class="bg-gray-50 p-4 rounded-2xl border border-gray-200 flex items-center justify-between">
-            <div class="flex items-center space-x-3 truncate">
-              <div class="w-10 h-10 rounded-full bg-purple-600 text-white flex items-center justify-center font-bold text-lg flex-shrink-0"><i class="fa-solid fa-clock"></i></div>
-              <div class="truncate">
-                <p class="font-extrabold text-purple-600 text-sm">Processing Withdrawal</p>
-                <p class="text-xs text-gray-400">Request submitted successfully</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      `;
-    }
-
-    // PROFILE TAB RENDER WITH RULES & TERMS
-    function renderProfile() {
-      const joinedDate = getJoinedDateFormatted();
+    function renderWithdraw() {
+      const minWithdrawBDT = 500;
 
       return `
-        <div class="bg-profile-banner rounded-3xl p-6 text-white text-center shadow-lg animate-slide-left relative overflow-hidden">
-          <div class="relative z-10">
-            <div class="mx-auto w-20 h-20 mb-3 flex justify-center items-center">
-              ${renderAvatar(user.photo_url, user.first_name)}
+        <div class="bg-gradient-custom rounded-3xl p-6 text-white shadow-lg animate-slide-left">
+          <p class="text-xs text-white/80 uppercase tracking-wider font-semibold">Available Balance</p>
+          <h1 class="text-3xl font-extrabold my-1">${fmtCurr(userState.balance)}</h1>
+          <p class="text-xs text-white/90">Total Withdrawn: ${fmtCurr(userState.withdrawn)}</p>
+        </div>
+
+        <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 space-y-4 animate-slide-right">
+          <h3 class="font-bold text-gray-800 text-sm">Select Method</h3>
+          <div class="grid grid-cols-3 gap-2">
+            <button onclick="selectWithdrawMethod('bkash')" class="p-3 rounded-xl border flex flex-col items-center gap-1.5 btn-interactive ${userState.selectedMethod === 'bkash' ? 'border-purple-600 bg-purple-50 text-purple-700 font-bold' : 'border-gray-200 text-gray-600'}">
+              <span class="text-xs">bKash</span>
+            </button>
+            <button onclick="selectWithdrawMethod('nagad')" class="p-3 rounded-xl border flex flex-col items-center gap-1.5 btn-interactive ${userState.selectedMethod === 'nagad' ? 'border-purple-600 bg-purple-50 text-purple-700 font-bold' : 'border-gray-200 text-gray-600'}">
+              <span class="text-xs">Nagad</span>
+            </button>
+            <button onclick="selectWithdrawMethod('usdt')" class="p-3 rounded-xl border flex flex-col items-center gap-1.5 btn-interactive ${userState.selectedMethod === 'usdt' ? 'border-purple-600 bg-purple-50 text-purple-700 font-bold' : 'border-gray-200 text-gray-600'}">
+              <span class="text-xs">USDT</span>
+            </button>
+          </div>
+
+          <div class="space-y-3 pt-2">
+            <div>
+              <label class="text-xs text-gray-500 font-bold block mb-1">Account / Wallet Address</label>
+              <input id="withdraw-account" type="text" placeholder="Enter number or address" class="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 text-sm outline-none focus:border-purple-600 transition" />
             </div>
-            <h2 class="text-2xl font-extrabold">${user.first_name}</h2>
-            <p class="text-xs text-white/80 mt-0.5">ID: ${user.id}</p>
+            <div>
+              <label class="text-xs text-gray-500 font-bold block mb-1">Amount (BDT)</label>
+              <input id="withdraw-amount" type="number" placeholder="Min ৳ 500" class="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 text-sm outline-none focus:border-purple-600 transition" />
+            </div>
+            <button onclick="processWithdraw()" class="w-full btn-gradient text-white font-bold py-3.5 rounded-xl shadow-md btn-interactive">Request Cashout</button>
           </div>
-        </div>
-
-        <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 space-y-3 animate-slide-right">
-          <div class="flex justify-between items-center py-2 border-b border-gray-100 text-sm">
-            <span class="text-gray-500 font-medium">Joined Date</span>
-            <span class="font-bold text-gray-800">${joinedDate}</span>
-          </div>
-          <div class="flex justify-between items-center py-2 border-b border-gray-100 text-sm">
-            <span class="text-gray-500 font-medium">Total Balance</span>
-            <span class="font-bold text-purple-600">${fmtCurr(userState.balance)}</span>
-          </div>
-          <div class="flex justify-between items-center py-2 border-b border-gray-100 text-sm">
-            <span class="text-gray-500 font-medium">Withdrawn</span>
-            <span class="font-bold text-gray-800">${fmtCurr(userState.withdrawn)}</span>
-          </div>
-          <div class="flex justify-between items-center py-2 text-sm">
-            <span class="text-gray-500 font-medium">Referrals</span>
-            <span class="font-bold text-gray-800">${userState.referrals}</span>
-          </div>
-        </div>
-
-        <!-- RULES & TERMS CARD IN PROFILE -->
-        <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 space-y-3 animate-slide-left">
-          <div class="flex items-center space-x-2 text-purple-700">
-            <i class="fa-solid fa-scroll text-lg"></i>
-            <h3 class="font-bold text-gray-800 text-base">Rules & Terms</h3>
-          </div>
-          <ul class="space-y-2.5 text-xs text-gray-600">
-            <li class="flex items-start gap-2">
-              <i class="fa-solid fa-circle-check text-emerald-500 mt-0.5 text-xs"></i>
-              <span>Complete the full 25-second ad watch timer to earn rewards.</span>
-            </li>
-            <li class="flex items-start gap-2">
-              <i class="fa-solid fa-circle-check text-emerald-500 mt-0.5 text-xs"></i>
-              <span>One account permitted per Telegram ID/Device. Multiple fake accounts will be banned.</span>
-            </li>
-            <li class="flex items-start gap-2">
-              <i class="fa-solid fa-circle-check text-emerald-500 mt-0.5 text-xs"></i>
-              <span>Minimum withdrawal threshold is ৳1020 ($10 USD).</span>
-            </li>
-            <li class="flex items-start gap-2">
-              <i class="fa-solid fa-circle-check text-emerald-500 mt-0.5 text-xs"></i>
-              <span>Payouts are processed via bKash, Nagad, and USDT (TRC-20/BEP-20).</span>
-            </li>
-          </ul>
         </div>
       `;
     }
 
-    // Initialize application on load
-    switchTab('home');
+    function renderProfile() {
+      return `
+        <div class="bg-profile-banner rounded-3xl p-6 text-white text-center shadow-lg animate-slide-left">
+          <div class="mx-auto flex justify-center mb-2">
+            ${renderAvatar(user.photo_url, user.first_name)}
+          </div>
+          <h2 class="text-xl font-extrabold">${user.first_name}</h2>
+          <p class="text-xs text-white/80">ID: ${user.id}</p>
+          <span class="inline-block mt-2 bg-white/20 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider">Member Since ${userState.joinedDate}</span>
+        </div>
+
+        <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 space-y-3 animate-slide-right">
+          <h3 class="font-bold text-gray-800 text-sm mb-2">Account Statistics</h3>
+          <div class="flex justify-between items-center py-2 border-b border-gray-50 text-xs">
+            <span class="text-gray-500">Current Balance</span>
+            <span class="font-bold text-gray-800">${fmtCurr(userState.balance)}</span>
+          </div>
+          <div class="flex justify-between items-center py-2 border-b border-gray-50 text-xs">
+            <span class="text-gray-500">Total Earned</span>
+            <span class="font-bold text-purple-600">${fmtCurr(userState.totalEarned)}</span>
+          </div>
+          <div class="flex justify-between items-center py-2 border-b border-gray-50 text-xs">
+            <span class="text-gray-500">Total Referrals</span>
+            <span class="font-bold text-gray-800">${userState.referrals}</span>
+          </div>
+          <div class="flex justify-between items-center py-2 text-xs">
+            <span class="text-gray-500">Ads Watched Today</span>
+            <span class="font-bold text-gray-800">${userState.adsWatched} / 10</span>
+          </div>
+        </div>
+      `;
+    }
+
+    // Initialize application on page load
+    window.addEventListener('DOMContentLoaded', () => {
+      switchTab(userState.currentTab || 'home');
+    });
   </script>
 </body>
 </html>
