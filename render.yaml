@@ -1,0 +1,7 @@
+services:
+  - type: web
+    name: taskpaybd-api
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn api:app
+
