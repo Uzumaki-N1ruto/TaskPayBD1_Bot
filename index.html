@@ -49,8 +49,11 @@
   <!-- DYNAMIC TAB CONTENT -->
   <main id="app-content" class="p-4 space-y-4 max-w-md mx-auto"></main>
 
+  <!-- OVERLAY / MODAL CONTAINER (for Ads & Rules) -->
+  <div id="modal-container"></div>
+
   <!-- BOTTOM NAVIGATION BAR -->
-  <nav class="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 flex justify-around py-2 max-w-md mx-auto shadow-lg z-50">
+  <nav class="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 flex justify-around py-2 max-w-md mx-auto shadow-lg z-40">
     <button onclick="switchTab('home')" id="nav-home" class="flex flex-col items-center text-purple-600 text-xs font-medium btn-interactive">
       <i class="fa-solid fa-house text-lg mb-1"></i>Home
     </button>
@@ -80,12 +83,10 @@
       return `৳ ${bdtAmount.toFixed(2)} ($${usdAmount})`;
     }
 
-    // Generate random 10-digit number for ID if missing
     function generate10DigitId() {
       return Math.floor(1000000000 + Math.random() * 9000000000).toString();
     }
 
-    // Format current date as "DD MMM YYYY"
     function getJoinedDateFormatted() {
       const today = new Date();
       const day = today.getDate();
@@ -94,7 +95,6 @@
       return `${day} ${month} ${year}`;
     }
 
-    // Telegram User Object
     const tgUser = tg?.initDataUnsafe?.user;
     const user = {
       first_name: tgUser?.first_name || 'User',
@@ -103,7 +103,6 @@
       photo_url: tgUser?.photo_url || ''
     };
 
-    // Available Ad Links Pool
     const availableAdLinks = [
       "https://youtube.com/shorts/QKQLl0VQw6I?si=oWzwF_JFcu9b96Gl",
       "https://youtube.com/shorts/RtUEhRlqcF4?si=QQaPldQUd7bAQvRu",
@@ -117,7 +116,6 @@
       "https://youtube.com/shorts/XUXIstcmVuw?si=sEjXEGGMsIKzQ4iq"
     ];
     
-    // User State
     const userState = {
       balance: 0.00,
       withdrawn: 0.00,
@@ -127,7 +125,9 @@
       activeReferTab: 'leaderboard',
       myReferralsList: [],
       selectedMethod: 'bkash',
-      showRulesModal: false,
+      currentTab: 'home',
+      isWatchingAd: false,
+      adTimer: 25,
       tasks: {
         welcome: { title: 'Welcome bonus', reward: 50.00, link: 'https://t.me/TaskPayBDTasks', status: 'join', category: 'JOIN BONUS', type: 'tg', icon: 'telegram' },
         proof: { title: 'Payment Proof Channel', reward: 20.00, link: 'https://t.me/TaskPayBDOfficial', status: 'join', category: 'TELEGRAM', type: 'tg', icon: 'telegram' },
@@ -136,7 +136,6 @@
       }
     };
 
-    // Leaderboard Data
     const defaultLeaderboard = [
       { name: "Jannat", count: 4993, avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80" },
       { name: "Arafat", count: 1849, avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=150&q=80" },
@@ -158,8 +157,9 @@
       return `<div class="w-16 h-16 rounded-2xl bg-gradient-to-tr from-amber-400 to-rose-400 text-white font-extrabold text-2xl flex items-center justify-center shadow-lg border-2 border-white/40">${initial}</div>`;
     }
 
-    // TAB NAVIGATION HANDLER
     function switchTab(tab) {
+      if (userState.isWatchingAd) return; // Lock tab navigation during ad count
+      userState.currentTab = tab;
       const app = document.getElementById('app-content');
       
       const tabs = ['home', 'earn', 'refer', 'withdraw', 'profile'];
@@ -179,7 +179,6 @@
       else if (tab === 'profile') app.innerHTML = renderProfile();
     }
 
-    // HOME TAB RENDER
     function renderHome() {
       const completedTasks = Object.values(userState.tasks).filter(t => t.status === 'done').length;
       const totalTasks = Object.keys(userState.tasks).length;
@@ -271,7 +270,6 @@
       `;
     }
 
-    // EARN TAB RENDER
     function renderEarn() {
       const isCompleted = userState.adsWatched >= 10 || availableAdLinks.length === 0;
 
@@ -292,7 +290,7 @@
           <div class="w-full bg-gray-100 rounded-full h-3">
             <div class="bg-purple-600 h-full rounded-full transition-all duration-300" style="width: ${(userState.adsWatched/10)*100}%"></div>
           </div>
-          <button onclick="watchAd()" ${isCompleted ? 'disabled' : ''} class="w-full ${isCompleted ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-purple-600 text-white shadow-md btn-interactive'} font-bold py-3 rounded-xl">
+          <button onclick="watchAd()" ${isCompleted || userState.isWatchingAd ? 'disabled' : ''} class="w-full ${isCompleted ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-purple-600 text-white shadow-md btn-interactive'} font-bold py-3 rounded-xl">
             ${isCompleted ? '✓ All Ads Watched Today' : '▶ Watch'}
           </button>
         </div>
@@ -339,22 +337,91 @@
       `;
     }
 
+    // AD WATCHING & POPUP LOGIC WITH 25s LOCKOUT
     function watchAd() {
-      if (userState.adsWatched < 10 && availableAdLinks.length > 0) {
-        const randomIndex = Math.floor(Math.random() * availableAdLinks.length);
-        const selectedUrl = availableAdLinks.splice(randomIndex, 1)[0];
+      if (userState.adsWatched >= 10 || availableAdLinks.length === 0 || userState.isWatchingAd) return;
 
-        window.open(selectedUrl, '_blank');
+      const randomIndex = Math.floor(Math.random() * availableAdLinks.length);
+      const selectedUrl = availableAdLinks[randomIndex];
 
-        userState.adsWatched += 1;
-        userState.balance += 10.00;
-        userState.totalEarned += 10.00;
+      // Open ad link in new tab
+      window.open(selectedUrl, '_blank');
 
-        switchTab('earn');
+      // Set lock state & timer
+      userState.isWatchingAd = true;
+      userState.adTimer = 25;
+
+      renderAdModal();
+
+      const timerInterval = setInterval(() => {
+        userState.adTimer -= 1;
+        if (userState.adTimer > 0) {
+          updateAdModalTimer();
+        } else {
+          clearInterval(timerInterval);
+          // Credit rewards after full timer completion
+          userState.adsWatched += 1;
+          userState.balance += 10.00;
+          userState.totalEarned += 10.00;
+          userState.isWatchingAd = false;
+
+          closeModal();
+          switchTab(userState.currentTab);
+        }
+      }, 1000);
+    }
+
+    function renderAdModal() {
+      const modalContainer = document.getElementById('modal-container');
+      const progressPercent = ((25 - userState.adTimer) / 25) * 100;
+
+      modalContainer.innerHTML = `
+        <div class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-6 select-none pointer-events-auto">
+          <div class="bg-white rounded-3xl p-6 w-full max-w-xs text-center shadow-2xl relative overflow-hidden animate-slide-left">
+            
+            <!-- Icon -->
+            <div class="w-16 h-16 rounded-2xl bg-gradient-to-tr from-purple-600 to-pink-500 flex items-center justify-center mx-auto text-white text-2xl shadow-md mb-4">
+              <i class="fa-regular fa-clock"></i>
+            </div>
+
+            <!-- Title in Bengali -->
+            <h2 class="text-xl font-bold text-gray-800 mb-2">এড দেখছেন...</h2>
+
+            <!-- Countdown Text -->
+            <p class="text-sm text-gray-600 font-medium mb-5">
+              Reward পেতে আরো <b id="ad-seconds-text" class="text-lg text-purple-700 font-extrabold">${userState.adTimer}s</b>
+            </p>
+
+            <!-- Progress Bar -->
+            <div class="w-full bg-gray-100 rounded-full h-2.5 mb-5 overflow-hidden">
+              <div id="ad-progress-bar" class="bg-gradient-to-r from-purple-600 to-pink-500 h-full rounded-full transition-all duration-1000 ease-linear" style="width: ${progressPercent}%"></div>
+            </div>
+
+            <!-- Warning Footer -->
+            <p class="text-[11px] text-gray-400 font-medium leading-tight">
+              এখন বন্ধ করবেন না — আগে বন্ধ করলে reward পাবেন না।
+            </p>
+          </div>
+        </div>
+      `;
+    }
+
+    function updateAdModalTimer() {
+      const secText = document.getElementById('ad-seconds-text');
+      const progressBar = document.getElementById('ad-progress-bar');
+      if (secText) secText.innerText = `${userState.adTimer}s`;
+      if (progressBar) {
+        const progressPercent = ((25 - userState.adTimer) / 25) * 100;
+        progressBar.style.width = `${progressPercent}%`;
       }
     }
 
+    function closeModal() {
+      document.getElementById('modal-container').innerHTML = '';
+    }
+
     function handleTaskAction(key) {
+      if (userState.isWatchingAd) return;
       const task = userState.tasks[key];
       if (task.status === 'join') {
         if (task.type === 'tg' && tg?.openTelegramLink) {
@@ -372,7 +439,6 @@
       }
     }
 
-    // REFER TAB RENDER
     function renderRefer() {
       const botReferralLink = `https://t.me/TaskPayBD_Bot?start=${user.id}`;
       const totalReferralEarnings = userState.referrals * 50.00;
@@ -513,6 +579,7 @@
     }
 
     function setReferTab(tab) {
+      if (userState.isWatchingAd) return;
       userState.activeReferTab = tab;
       switchTab('refer');
     }
@@ -533,9 +600,7 @@
       }
     }
 
-    // WITHDRAW TAB RENDER
     function renderWithdraw() {
-      // Authentic bKash SVG (Origami Bird vector)
       const bkashLogo = `
         <svg class="w-6 h-6 rounded-full flex-shrink-0 shadow-sm" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
           <circle cx="50" cy="50" r="50" fill="#E2136E"/>
@@ -546,7 +611,6 @@
         </svg>
       `;
 
-      // Authentic Nagad SVG (Gradient Swirl vector)
       const nagadLogo = `
         <svg class="w-6 h-6 rounded-full flex-shrink-0 shadow-sm" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
           <circle cx="50" cy="50" r="50" fill="url(#nagadGradient)"/>
@@ -561,7 +625,6 @@
         </svg>
       `;
 
-      // Authentic Tether (USDT) SVG
       const usdtLogo = `
         <svg class="w-6 h-6 rounded-full flex-shrink-0 shadow-sm" viewBox="0 0 2000 2000">
           <circle cx="1000" cy="1000" r="1000" fill="#26A17B"/>
@@ -576,8 +639,6 @@
       };
 
       const isUsdt = userState.selectedMethod === 'usdt';
-      
-      // Eligibility checking: 1020 BDT required for bKash/Nagad, $10 USD for USDT
       const requiredBdt = isUsdt ? (10 * BDT_PER_USD) : 1020;
       const isEligible = userState.balance >= requiredBdt;
       
@@ -640,11 +701,13 @@
     }
 
     function setMethod(method) {
+      if (userState.isWatchingAd) return;
       userState.selectedMethod = method;
       switchTab('withdraw');
     }
 
     function processWithdrawal() {
+      if (userState.isWatchingAd) return;
       const accountInput = document.getElementById('withdraw-account')?.value.trim() || '';
       const amountInput = parseFloat(document.getElementById('withdraw-amount')?.value || '0');
 
@@ -702,7 +765,7 @@
       `;
     }
 
-    // PROFILE TAB RENDER
+    // PROFILE TAB RENDER WITH RULES & TERMS
     function renderProfile() {
       const joinedDate = getJoinedDateFormatted();
 
@@ -734,6 +797,32 @@
             <span class="text-gray-500 font-medium">Referrals</span>
             <span class="font-bold text-gray-800">${userState.referrals}</span>
           </div>
+        </div>
+
+        <!-- RULES & TERMS CARD IN PROFILE -->
+        <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 space-y-3 animate-slide-left">
+          <div class="flex items-center space-x-2 text-purple-700">
+            <i class="fa-solid fa-scroll text-lg"></i>
+            <h3 class="font-bold text-gray-800 text-base">Rules & Terms</h3>
+          </div>
+          <ul class="space-y-2.5 text-xs text-gray-600">
+            <li class="flex items-start gap-2">
+              <i class="fa-solid fa-circle-check text-emerald-500 mt-0.5 text-xs"></i>
+              <span>Complete the full 25-second ad watch timer to earn rewards.</span>
+            </li>
+            <li class="flex items-start gap-2">
+              <i class="fa-solid fa-circle-check text-emerald-500 mt-0.5 text-xs"></i>
+              <span>One account permitted per Telegram ID/Device. Multiple fake accounts will be banned.</span>
+            </li>
+            <li class="flex items-start gap-2">
+              <i class="fa-solid fa-circle-check text-emerald-500 mt-0.5 text-xs"></i>
+              <span>Minimum withdrawal threshold is ৳1020 ($10 USD).</span>
+            </li>
+            <li class="flex items-start gap-2">
+              <i class="fa-solid fa-circle-check text-emerald-500 mt-0.5 text-xs"></i>
+              <span>Payouts are processed via bKash, Nagad, and USDT (TRC-20/BEP-20).</span>
+            </li>
+          </ul>
         </div>
       `;
     }
