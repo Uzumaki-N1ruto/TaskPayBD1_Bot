@@ -102,6 +102,10 @@
       photo_url: tgUser?.photo_url || ''
     };
 
+    function getReferLink() {
+      return `https://t.me/TaskPayBDBot?start=${user.id}`;
+    }
+
     // Unique per-user storage key
     const USER_STORAGE_KEY = `taskpay_user_state_${user.id}`;
 
@@ -293,7 +297,7 @@
         <div class="grid grid-cols-2 gap-3 animate-slide-right">
           <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100">
             <div class="w-8 h-8 rounded-full bg-purple-50 text-purple-600 flex items-center justify-center mb-2"><i class="fa-solid fa-users text-sm"></i></div>
-            <p class="text-2xl font-bold text-gray-800">%refcount%</p>
+            <p class="text-2xl font-bold text-gray-800">${userState.referrals}</p>
             <p class="text-xs text-gray-400 font-medium">Total Referrals</p>
           </div>
           <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100">
@@ -486,6 +490,7 @@
 
     function renderRefer() {
       const totalReferralEarnings = userState.referrals * 50.00;
+      const refLink = getReferLink();
 
       let currentBoard = [...defaultLeaderboard];
       const userBoardIndex = currentBoard.findIndex(item => item.isCurrentUser);
@@ -493,7 +498,7 @@
 
       currentBoard.push({
         name: user.first_name,
-        count: "%refcount%",
+        count: userState.referrals,
         avatar: user.photo_url,
         isCurrentUser: true
       });
@@ -507,12 +512,12 @@
           <p class="text-xs text-white/90 mt-1 font-medium">Get <b class="text-white">${fmtCurr(50)}</b> for every friend who joins</p>
           
           <div class="mt-4 bg-white/20 p-1.5 pl-4 rounded-full flex items-center justify-between text-xs backdrop-blur-md border border-white/20 shadow-inner">
-            <span class="truncate pr-2 font-mono text-[11px] text-white/90">%reflink%</span>
+            <span class="truncate pr-2 font-mono text-[11px] text-white/90">${refLink}</span>
             <div class="flex items-center space-x-1 flex-shrink-0">
-              <button onclick="copyReferLink('%reflink%')" class="bg-white/30 hover:bg-white/40 text-white p-2 rounded-full transition btn-interactive">
+              <button onclick="copyReferLink('${refLink}')" class="bg-white/30 hover:bg-white/40 text-white p-2 rounded-full transition btn-interactive">
                 <i class="fa-regular fa-copy text-sm"></i>
               </button>
-              <button onclick="shareReferLink('%reflink%')" class="bg-white/30 hover:bg-white/40 text-white p-2 rounded-full transition btn-interactive">
+              <button onclick="shareReferLink('${refLink}')" class="bg-white/30 hover:bg-white/40 text-white p-2 rounded-full transition btn-interactive">
                 <i class="fa-solid fa-share-nodes text-sm"></i>
               </button>
             </div>
@@ -522,7 +527,7 @@
         <div class="grid grid-cols-2 gap-3 animate-slide-right">
           <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 text-center">
             <p class="text-xs text-gray-400 font-medium">Total Referrals</p>
-            <p class="text-3xl font-extrabold text-gray-800 my-1">%refcount%</p>
+            <p class="text-3xl font-extrabold text-gray-800 my-1">${userState.referrals}</p>
           </div>
           <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 text-center">
             <p class="text-xs text-gray-400 font-medium">Total Earned</p>
@@ -673,7 +678,6 @@
     }
 
     function processWithdraw() {
-      // Disabled button action
       return;
     }
 
@@ -808,7 +812,7 @@
           </div>
           <div class="flex justify-between items-center py-2 border-b border-gray-50 text-xs">
             <span class="text-gray-500">Total Referrals</span>
-            <span class="font-bold text-gray-800">%refcount%</span>
+            <span class="font-bold text-gray-800">${userState.referrals}</span>
           </div>
           <div class="flex justify-between items-center py-2 text-xs">
             <span class="text-gray-500">Ads Watched Today</span>
@@ -816,7 +820,6 @@
           </div>
         </div>
 
-        <!-- WITHDRAWAL REQUIREMENTS & RULES MOVED BACK TO PROFILE -->
         <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 space-y-3 animate-slide-left">
           <div class="flex items-center space-x-2 text-purple-600">
             <i class="fa-solid fa-triangle-exclamation text-base"></i>
