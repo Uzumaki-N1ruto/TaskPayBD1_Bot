@@ -103,7 +103,7 @@
       photo_url: tgUser?.photo_url || ''
     };
 
-    // Available Ad Links Pool (Ensures no link opens twice)
+    // Available Ad Links Pool
     const availableAdLinks = [
       "https://youtube.com/shorts/QKQLl0VQw6I?si=oWzwF_JFcu9b96Gl",
       "https://youtube.com/shorts/RtUEhRlqcF4?si=QQaPldQUd7bAQvRu",
@@ -339,24 +339,17 @@
       `;
     }
 
-    // WATCH AD WITH RANDOM UNWATCHED LINK LOGIC
     function watchAd() {
       if (userState.adsWatched < 10 && availableAdLinks.length > 0) {
-        // Get random index
         const randomIndex = Math.floor(Math.random() * availableAdLinks.length);
-        
-        // Remove link from available links so it cannot be chosen again
         const selectedUrl = availableAdLinks.splice(randomIndex, 1)[0];
 
-        // Open YouTube Short in a new tab
         window.open(selectedUrl, '_blank');
 
-        // Increment counts and balance
         userState.adsWatched += 1;
         userState.balance += 10.00;
         userState.totalEarned += 10.00;
 
-        // Re-render Earn Tab
         switchTab('earn');
       }
     }
@@ -542,8 +535,6 @@
 
     // WITHDRAW TAB RENDER
     function renderWithdraw() {
-      const usdBalance = (userState.balance / BDT_PER_USD).toFixed(2);
-
       // SVG Logos
       const bkashLogo = `<svg class="w-6 h-6 rounded-full flex-shrink-0" viewBox="0 0 100 100" fill="none"><rect width="100" height="100" rx="50" fill="#E2136E"/><path d="M72 32L53 50L75 68H57L44 57L31 68H23L42 50L25 32H41L50 42L60 32H72Z" fill="white"/></svg>`;
       const nagadLogo = `<svg class="w-6 h-6 rounded-full flex-shrink-0" viewBox="0 0 100 100" fill="none"><rect width="100" height="100" rx="50" fill="#F7921E"/><circle cx="50" cy="50" r="28" stroke="white" stroke-width="8"/><path d="M40 35L60 65M60 35L40 65" stroke="white" stroke-width="6" stroke-linecap="round"/></svg>`;
@@ -556,7 +547,10 @@
       };
 
       const isUsdt = userState.selectedMethod === 'usdt';
-      const isEligible = userState.balance >= (10 * BDT_PER_USD);
+      
+      // Eligibility checking: 1020 BDT required for bKash/Nagad, $10 USD for USDT
+      const requiredBdt = isUsdt ? (10 * BDT_PER_USD) : 1020;
+      const isEligible = userState.balance >= requiredBdt;
       
       const buttonStyle = isEligible 
         ? 'bg-gradient-to-r from-purple-500 via-pink-500 to-orange-400 text-white shadow-lg cursor-pointer btn-interactive' 
@@ -566,7 +560,7 @@
         <div class="bg-gradient-custom rounded-3xl p-5 text-white shadow-lg animate-slide-left">
           <p class="text-xs text-white/80 uppercase">Available Balance</p>
           <h1 class="text-3xl font-extrabold my-1">${fmtCurr(userState.balance)}</h1>
-          <p class="text-xs text-white/90">Min. withdrawal: $10.00</p>
+          <p class="text-xs text-white/90">Min. withdrawal: 1020 ৳</p>
         </div>
 
         <div class="bg-white p-5 rounded-3xl shadow-sm border border-gray-100 space-y-5 animate-slide-right">
@@ -600,17 +594,17 @@
 
           <div>
             <div class="flex justify-between items-center mb-2">
-              <label class="text-xs text-gray-800 font-bold">Amount in $</label>
-              <span class="text-xs text-gray-400 font-medium">minimum 10$</span>
+              <label class="text-xs text-gray-800 font-bold">${isUsdt ? 'Amount in $' : 'Amount in ৳'}</label>
+              <span class="text-xs text-gray-400 font-medium">${isUsdt ? 'minimum 10$' : 'minimum 1020 ৳'}</span>
             </div>
             <div class="relative flex items-center">
-              <span class="absolute left-4 text-gray-500 font-bold text-base">$</span>
-              <input type="number" id="withdraw-amount" value="10.00" step="0.01" class="w-full bg-gray-50 border border-gray-100 p-3.5 pl-8 rounded-2xl text-base outline-none focus:border-purple-600 font-extrabold text-gray-800">
+              <span class="absolute left-4 text-gray-500 font-bold text-base">${isUsdt ? '$' : '৳'}</span>
+              <input type="number" id="withdraw-amount" value="${isUsdt ? '10.00' : '1020'}" step="${isUsdt ? '0.01' : '1'}" class="w-full bg-gray-50 border border-gray-100 p-3.5 pl-8 rounded-2xl text-base outline-none focus:border-purple-600 font-extrabold text-gray-800">
             </div>
           </div>
 
           <button type="button" ${!isEligible ? 'disabled' : ''} onclick="processWithdrawal()" class="w-full font-bold py-4 rounded-2xl ${buttonStyle} text-base tracking-wide">
-            Request 10$
+            ${isUsdt ? 'Request 10$' : 'Request 1020 ৳'}
           </button>
         </div>
       `;
@@ -627,14 +621,15 @@
 
       if (userState.selectedMethod === 'usdt') {
         if (!accountInput || accountInput.length < 10) return;
+        if (amountInput < 10) return;
+        const amountInBdt = amountInput * BDT_PER_USD;
+        if (userState.balance < amountInBdt) return;
       } else {
         const mobileRegex = /^01\d{9}$/;
         if (!mobileRegex.test(accountInput)) return;
+        if (amountInput < 1020) return;
+        if (userState.balance < amountInput) return;
       }
-
-      if (amountInput < 10) return;
-      const amountInBdt = amountInput * BDT_PER_USD;
-      if (userState.balance < amountInBdt) return;
 
       openVerificationPage();
     }
@@ -654,28 +649,23 @@
           </div>
 
           <div class="bg-purple-50/60 p-4 rounded-2xl border border-purple-100 text-xs space-y-2 text-purple-900">
-            <p class="font-medium">To complete your withdrawal, please verify your USDT transaction.</p>
-            <div class="flex items-center gap-1.5 font-bold text-gray-800">
-              <span class="w-4 h-4 bg-emerald-500 text-white rounded-full flex items-center justify-center text-[10px]">T</span>
-              <span>Amount: $11.00 (USDT)</span>
-            </div>
+            <p class="font-medium">To complete your withdrawal, please verify your transaction details.</p>
             <div class="flex items-center gap-1.5 font-bold text-gray-800">
               <span class="w-4 h-4 bg-emerald-500 text-white rounded-full flex items-center justify-center text-[10px]">✓</span>
-              <span>Channel: USDT (ERC20 Network)</span>
+              <span>Minimum Payout Satisfied</span>
             </div>
             <ul class="list-disc pl-4 space-y-1 text-gray-600 pt-1">
-              <li>Make sure your USDT wallet is active.</li>
-              <li>Do not make any fee payment.</li>
-              <li>Once verified, your withdrawal will be processed.</li>
+              <li>Ensure your details are accurate before proceeding.</li>
+              <li>Once submitted, processing takes a few moments.</li>
             </ul>
           </div>
 
           <div class="bg-gray-50 p-4 rounded-2xl border border-gray-200 flex items-center justify-between">
             <div class="flex items-center space-x-3 truncate">
-              <div class="w-10 h-10 rounded-full bg-emerald-500 text-white flex items-center justify-center font-bold text-lg flex-shrink-0">T</div>
+              <div class="w-10 h-10 rounded-full bg-purple-600 text-white flex items-center justify-center font-bold text-lg flex-shrink-0"><i class="fa-solid fa-clock"></i></div>
               <div class="truncate">
-                <p class="font-extrabold text-emerald-600 text-sm">Verification Needed</p>
-                <p class="text-xs text-gray-400">Complete verification to proceed</p>
+                <p class="font-extrabold text-purple-600 text-sm">Processing Withdrawal</p>
+                <p class="text-xs text-gray-400">Request submitted successfully</p>
               </div>
             </div>
           </div>
