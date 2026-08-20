@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 <title>Bangla Task Hub</title>
-  <script src='//libtl.com/sdk.js' data-zone='11618387' data-sdk='show_11618387'></script>
+<script src='//libtl.com/sdk.js' data-zone='11618387' data-sdk='show_11618387'></script>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <script src="https://cdn.tailwindcss.com"></script>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -39,11 +39,13 @@ const API_BASE='https://taskpaybd.onrender.com';
 const BDT_PER_USD=122.21;
 const MAX_ADS=10;
 const AD_SECONDS=25;
+const AD_REWARD=10;
 let state=null;
 let currentTab='home';
 let activeReferTab='leaderboard';
 let adSession=null;
 let adTimer=null;
+let rewardedAdRunning=false;
 
 function fmtCurr(bdt){const usd=bdt/BDT_PER_USD;return `৳ ${Number(bdt).toFixed(2)} ($${usd.toFixed(2)})`}
 function esc(v){return String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]))}
@@ -93,7 +95,7 @@ function renderHome(){
   const tasks=Object.values(state.tasks);
   const done=tasks.filter(t=>t.status==='done').length;
   const pending=tasks.length-done;
-  const progress=Math.round(done/tasks.length*100);
+  const progress=tasks.length?Math.round(done/tasks.length*100):0;
   return `
   <div class="bg-gradient-custom rounded-3xl p-5 text-white shadow-lg animate-slide-left">
     <div class="flex justify-between items-center mb-4"><div><p class="text-xs text-white/80 font-medium">Welcome back 👋</p><h1 class="text-2xl font-bold">${esc(state.user.first_name)}</h1></div>${renderAvatar(state.user.photo_url,state.user.first_name)}</div>
@@ -116,8 +118,8 @@ function renderHome(){
 }
 function renderEarn(){
   const complete=state.adsWatched>=MAX_ADS;
-  return `<div class="bg-gradient-custom rounded-3xl p-5 text-white shadow-lg animate-slide-left"><p class="text-xs text-white/80 uppercase tracking-wider">Daily Ads</p><div class="flex justify-between items-baseline my-1"><h1 class="text-3xl font-extrabold">Earn</h1><span class="text-xs">Today's reward: <b class="text-sm">${fmtCurr(10)}</b> / ad</span></div></div>
-  <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 space-y-3 animate-slide-right"><div class="flex justify-between text-sm font-bold"><span>Daily Progress</span><span class="text-purple-600">${state.adsWatched} / ${MAX_ADS} watched</span></div><div class="w-full bg-gray-100 rounded-full h-3"><div class="bg-purple-600 h-full rounded-full transition-all" style="width:${Math.min(100,state.adsWatched/MAX_ADS*100)}%"></div></div><button onclick="watchAd()" ${complete?'disabled':''} class="w-full ${complete?'bg-gray-300 text-gray-500 cursor-not-allowed':'bg-purple-600 text-white shadow-md btn-interactive'} font-bold py-3 rounded-xl">${complete?'✓ All Ads Watched Today':'▶ Watch'}</button></div>
+  return `<div class="bg-gradient-custom rounded-3xl p-5 text-white shadow-lg animate-slide-left"><p class="text-xs text-white/80 uppercase tracking-wider">Daily Ads</p><div class="flex justify-between items-baseline my-1"><h1 class="text-3xl font-extrabold">Earn</h1><span class="text-xs">Today's reward: <b class="text-sm">${fmtCurr(AD_REWARD)}</b> / ad</span></div></div>
+  <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 space-y-3 animate-slide-right"><div class="flex justify-between text-sm font-bold"><span>Daily Progress</span><span class="text-purple-600">${state.adsWatched} / ${MAX_ADS} watched</span></div><div class="w-full bg-gray-100 rounded-full h-3"><div class="bg-purple-600 h-full rounded-full transition-all" style="width:${Math.min(100,state.adsWatched/MAX_ADS*100)}%"></div></div><button onclick="watchAd()" ${complete?'disabled':''} class="w-full ${complete?'bg-gray-300 text-gray-500 cursor-not-allowed':'bg-purple-600 text-white shadow-md btn-interactive'} font-bold py-3 rounded-xl">${complete?'✓ All Ads Watched Today':'▶ Watch & Earn ৳10'}</button></div>
   <h3 class="font-bold text-gray-700 pt-2 flex items-center gap-1.5 animate-slide-left"><i class="fa-solid fa-circle-check text-purple-600"></i> Tasks</h3><div class="space-y-3 animate-slide-left">${Object.keys(state.tasks).map(k=>renderTaskCard(k)).join('')}</div>`
 }
 function renderTaskCard(key){
@@ -129,41 +131,104 @@ function renderTaskCard(key){
 async function startTask(key){
   try{
     const data=await api('/api/task/start',{method:'POST',body:JSON.stringify({taskKey:key})});
-    updateState(data.state);switchTab('earn');
-    if(state.tasks[key].type==='telegram'&&tg?.openTelegramLink)tg.openTelegramLink(data.link);else window.open(data.link,'_blank');
+    updateState(data.state);
+    switchTab('earn');
+    if(state.tasks[key].type==='telegram'&&tg?.openTelegramLink)tg.openTelegramLink(data.link);
+    else window.open(data.link,'_blank');
   }catch(e){notify('Task',e.message)}
 }
 async function claimTask(key){
   try{
     const data=await api('/api/task/claim',{method:'POST',body:JSON.stringify({taskKey:key})});
-    updateState(data.state);switchTab('earn');notify('Reward added',`You received ${fmtCurr(data.reward)}.`);
+    updateState(data.state);
+    switchTab('earn');
+    notify('Reward added',`You received ${fmtCurr(data.reward)}.`);
   }catch(e){notify('Task',e.message)}
 }
 async function watchAd(){
-  if(adSession||state.adsWatched>=MAX_ADS)return;
+  if(adSession||rewardedAdRunning||state.adsWatched>=MAX_ADS)return;
   try{
+    rewardedAdRunning=true;
+
     const data=await api('/api/ad/start',{method:'POST',body:'{}'});
     adSession=data;
-    window.open(data.url,'_blank');
+
+    if(data.url){
+      window.open(data.url,'_blank');
+    }
+
     renderAdModal();
+
+    let rewardedCompleted=false;
+
+    if(typeof show_11618387==='function'){
+      try{
+        await show_11618387();
+        rewardedCompleted=true;
+      }catch(e){
+        rewardedCompleted=false;
+      }
+    }
+
     let remaining=AD_SECONDS;
+
     adTimer=setInterval(async()=>{
       remaining--;
       updateAdTimer(remaining);
+
       if(remaining<=0){
-        clearInterval(adTimer);adTimer=null;
+        clearInterval(adTimer);
+        adTimer=null;
+
+        if(!rewardedCompleted){
+          adSession=null;
+          rewardedAdRunning=false;
+          closeModal();
+          notify('Ad','The rewarded ad was not completed, so no reward was added.');
+          return;
+        }
+
         try{
-          const result=await api('/api/ad/complete',{method:'POST',body:JSON.stringify({sessionId:adSession.sessionId})});
-          updateState(result.state);adSession=null;closeModal();switchTab(currentTab);notify('Reward added',`You earned ${fmtCurr(result.reward)}.`);
-        }catch(e){adSession=null;closeModal();notify('Ad',e.message)}
+          const result=await api('/api/ad/complete',{
+            method:'POST',
+            body:JSON.stringify({sessionId:adSession.sessionId})
+          });
+
+          updateState(result.state);
+          adSession=null;
+          rewardedAdRunning=false;
+          closeModal();
+          switchTab(currentTab);
+          notify('Reward added',`You earned ${fmtCurr(result.reward)}.`);
+        }catch(e){
+          adSession=null;
+          rewardedAdRunning=false;
+          closeModal();
+          notify('Ad',e.message);
+        }
       }
     },1000);
-  }catch(e){notify('Ads',e.message)}
+
+  }catch(e){
+    if(adTimer){
+      clearInterval(adTimer);
+      adTimer=null;
+    }
+    adSession=null;
+    rewardedAdRunning=false;
+    closeModal();
+    notify('Ads',e.message);
+  }
 }
 function renderAdModal(){
   document.getElementById('modal-container').innerHTML=`<div class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-6"><div class="bg-white rounded-3xl p-6 w-full max-w-xs text-center shadow-2xl"><div class="w-16 h-16 rounded-2xl bg-gradient-to-tr from-purple-600 to-pink-500 flex items-center justify-center mx-auto text-white text-2xl shadow-md mb-4"><i class="fa-regular fa-clock"></i></div><h2 class="text-xl font-bold mb-2">এড দেখছেন...</h2><p class="text-sm text-gray-600 font-medium mb-5">Reward পেতে আরো <b id="ad-seconds-text" class="text-lg text-purple-700 font-extrabold">${AD_SECONDS}s</b></p><div class="w-full bg-gray-100 rounded-full h-2.5 mb-5 overflow-hidden"><div id="ad-progress-bar" class="bg-gradient-to-r from-purple-600 to-pink-500 h-full rounded-full transition-all duration-1000" style="width:0%"></div></div><p class="text-[11px] text-gray-400 font-medium">এখন বন্ধ করবেন না — timer শেষ হওয়ার আগে বন্ধ করলে reward পাবেন না।</p></div></div>`
 }
-function updateAdTimer(sec){const s=document.getElementById('ad-seconds-text');const b=document.getElementById('ad-progress-bar');if(s)s.innerText=sec+'s';if(b)b.style.width=((AD_SECONDS-sec)/AD_SECONDS*100)+'%'}
+function updateAdTimer(sec){
+  const s=document.getElementById('ad-seconds-text');
+  const b=document.getElementById('ad-progress-bar');
+  if(s)s.innerText=sec+'s';
+  if(b)b.style.width=((AD_SECONDS-sec)/AD_SECONDS*100)+'%';
+}
 function closeModal(){document.getElementById('modal-container').innerHTML=''}
 function renderRefer(){
   const board=state.leaderboard||[];
@@ -196,14 +261,38 @@ function renderWithdraw(){
   return `<div class="bg-white p-5 rounded-3xl shadow-sm border space-y-4 animate-slide-left"><div class="flex items-center space-x-2 text-purple-700"><i class="fa-solid fa-arrow-down-long"></i><h2 class="font-extrabold text-lg">Request Payout</h2></div><div><label class="text-xs font-bold block mb-2">Payment Method</label><div class="grid grid-cols-3 gap-2"><button id="method-bkash" onclick="selectMethod('bkash')" class="p-3 rounded-2xl border text-xs font-bold">bKash</button><button id="method-nagad" onclick="selectMethod('nagad')" class="p-3 rounded-2xl border text-xs font-bold">Nagad</button><button id="method-usdt" onclick="selectMethod('usdt')" class="p-3 rounded-2xl border text-xs font-bold">USDT</button></div></div><div><label class="text-xs font-bold block mb-1">Account / Address</label><input id="withdraw-account" type="text" placeholder="01XXXXXXXXX" class="w-full bg-slate-50 border border-gray-200 rounded-2xl p-3.5 text-sm outline-none focus:border-purple-600"></div><div><div class="flex justify-between mb-1"><label class="text-xs font-bold">Amount</label><span id="withdraw-min" class="text-[11px] text-emerald-600 font-bold">Min: ৳ 1,020.00</span></div><input id="withdraw-amount" type="number" step="0.01" value="1020" class="w-full bg-slate-50 border border-gray-200 rounded-2xl p-3.5 text-base font-extrabold outline-none focus:border-purple-600"></div><button onclick="processWithdraw()" class="w-full btn-gradient text-white font-extrabold py-4 rounded-2xl shadow-md">Request Payout</button><p class="text-[10px] text-gray-400 text-center">Available balance: ${fmtCurr(state.balance)}</p></div><div class="space-y-2 animate-slide-right"><h3 class="font-extrabold text-sm px-1">Recent Transactions</h3>${history.length?`<div class="space-y-2">${history.map(x=>`<div class="bg-white p-3.5 rounded-2xl border shadow-sm flex items-center justify-between"><div><p class="font-bold text-xs">${esc(x.method.toUpperCase())} · ${esc(x.account)}</p><p class="text-[10px] text-gray-400">${esc(x.date)}</p></div><div class="text-right"><p class="font-extrabold text-sm">${x.currency==='USDT'?'$':'৳'}${Number(x.amount).toFixed(2)}</p><span class="text-[9px] font-bold px-2 py-0.5 rounded-full ${x.status==='paid'?'bg-green-100 text-green-700':x.status==='rejected'?'bg-red-100 text-red-700':'bg-amber-100 text-amber-700'}">${esc(x.status)}</span></div></div>`).join('')}</div>`:`<div class="bg-white/50 p-8 rounded-2xl border border-dashed text-center text-gray-400 text-xs">No withdrawal history yet.</div>`}</div>`
 }
 let withdrawMethod='bkash';
-function selectMethod(m){withdrawMethod=m;switchTab('withdraw');setTimeout(()=>{const buttons=['bkash','nagad','usdt'];buttons.forEach(x=>{const b=document.getElementById('method-'+x);if(b)b.className=x===m?'p-3 rounded-2xl border bg-purple-600 border-purple-600 text-white text-xs font-bold':'p-3 rounded-2xl border bg-gray-50 text-gray-700 text-xs font-bold'});const input=document.getElementById('withdraw-amount');const min=document.getElementById('withdraw-min');const account=document.getElementById('withdraw-account');if(m==='usdt'){input.value=10;min.innerText='Min: $10.00';account.placeholder='TRC20 address'}else{input.value=1020;min.innerText='Min: ৳ 1,020.00';account.placeholder='01XXXXXXXXX'}},0)}
+function selectMethod(m){
+  withdrawMethod=m;
+  switchTab('withdraw');
+  setTimeout(()=>{
+    const buttons=['bkash','nagad','usdt'];
+    buttons.forEach(x=>{
+      const b=document.getElementById('method-'+x);
+      if(b)b.className=x===m?'p-3 rounded-2xl border bg-purple-600 border-purple-600 text-white text-xs font-bold':'p-3 rounded-2xl border bg-gray-50 text-gray-700 text-xs font-bold'
+    });
+    const input=document.getElementById('withdraw-amount');
+    const min=document.getElementById('withdraw-min');
+    const account=document.getElementById('withdraw-account');
+    if(m==='usdt'){
+      input.value=10;
+      min.innerText='Min: $10.00';
+      account.placeholder='TRC20 address'
+    }else{
+      input.value=1020;
+      min.innerText='Min: ৳ 1,020.00';
+      account.placeholder='01XXXXXXXXX'
+    }
+  },0)
+}
 async function processWithdraw(){
   const account=document.getElementById('withdraw-account')?.value.trim();
   const amount=Number(document.getElementById('withdraw-amount')?.value);
   if(!account||!amount)return notify('Withdrawal','Enter your account/address and amount.');
   try{
     const data=await api('/api/withdraw',{method:'POST',body:JSON.stringify({method:withdrawMethod,account,amount})});
-    updateState(data.state);switchTab('withdraw');notify('Request submitted','Your withdrawal request is now pending manual review.');
+    updateState(data.state);
+    switchTab('withdraw');
+    notify('Request submitted','Your withdrawal request is now pending manual review.');
   }catch(e){notify('Withdrawal',e.message)}
 }
 function renderProfile(){
