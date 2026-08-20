@@ -43,6 +43,8 @@ MAX_ADS_PER_DAY = 10
 MIN_BDT_WITHDRAW = 1020.00
 MIN_USDT_WITHDRAW = 10.00
 
+AD_SESSION_TIMEOUT_SECONDS = 5
+
 DHAKA = ZoneInfo("Asia/Dhaka")
 
 TASKS = {
@@ -173,6 +175,7 @@ def close_db(error=None):
 
 def init_db():
     conn = sqlite3.connect(DATABASE)
+
     conn.executescript("""
     CREATE TABLE IF NOT EXISTS users (
         telegram_id INTEGER PRIMARY KEY,
@@ -242,6 +245,7 @@ def init_db():
     CREATE INDEX IF NOT EXISTS idx_ad_sessions_user
     ON ad_sessions(telegram_id);
     """)
+
     conn.commit()
     conn.close()
 
@@ -796,9 +800,15 @@ def start_ad():
             "error": "Daily ad limit reached"
         }), 400
 
+    now = int(
+        datetime.now(
+            timezone.utc
+        ).timestamp()
+    )
+
     active = db().execute(
         """
-        SELECT id
+        SELECT id, started_at
         FROM ad_sessions
         WHERE
             telegram_id=?
@@ -811,10 +821,28 @@ def start_ad():
     ).fetchone()
 
     if active:
-        return jsonify({
-            "ok": False,
-            "error": "An ad session is already active"
-        }), 400
+        age = now - active["started_at"]
+
+        if age >= AD_SESSION_TIMEOUT_SECONDS:
+            db().execute(
+                """
+                UPDATE ad_sessions
+                SET completed_at=?
+                WHERE id=?
+                """,
+                (
+                    now,
+                    active["id"]
+                )
+            )
+
+            db().commit()
+
+        else:
+            return jsonify({
+                "ok": False,
+                "error": "An ad session is already active"
+            }), 400
 
     session_id = secrets.token_urlsafe(24)
 
@@ -822,11 +850,7 @@ def start_ad():
         AD_LINKS
     )
 
-    started_at = int(
-        datetime.now(
-            timezone.utc
-        ).timestamp()
-    )
+    started_at = now
 
     db().execute(
         """
@@ -907,6 +931,14 @@ def complete_ad():
         return jsonify({
             "ok": False,
             "error": "Ad already rewarded"
+        }), 400
+
+    if session["completed_at"]:
+        conn.rollback()
+
+        return jsonify({
+            "ok": False,
+            "error": "Ad session expired"
         }), 400
 
     elapsed = (
@@ -1527,4 +1559,4 @@ if __name__ == "__main__":
     app.run(
         host="0.0.0.0",
         port=port
-)
+    )
