@@ -1,4 +1,3 @@
-
 import os
 import sqlite3
 from datetime import datetime
@@ -171,9 +170,37 @@ def ensure_user(user):
     existing = get_user(user.id)
 
     if existing:
-        return existing
+        conn = get_db()
+
+        conn.execute(
+            """
+            UPDATE users
+            SET first_name=?,
+                last_name=?,
+                username=?
+            WHERE telegram_id=?
+            """,
+            (
+                user.first_name or "User",
+                user.last_name or "",
+                user.username or "",
+                user.id
+            )
+        )
+
+        conn.commit()
+
+        updated = conn.execute(
+            "SELECT * FROM users WHERE telegram_id=?",
+            (user.id,)
+        ).fetchone()
+
+        conn.close()
+
+        return updated
 
     now = datetime.now(ZoneInfo("Asia/Dhaka"))
+
     conn = get_db()
 
     conn.execute(
@@ -211,6 +238,97 @@ def ensure_user(user):
     conn.close()
 
     return created
+
+
+def process_referral(user_id, start_parameter):
+    if not start_parameter:
+        return False
+
+    if not start_parameter.startswith("r"):
+        return False
+
+    try:
+        referrer_id = int(start_parameter[1:])
+    except ValueError:
+        return False
+
+    if referrer_id == user_id:
+        return False
+
+    conn = get_db()
+
+    user = conn.execute(
+        "SELECT * FROM users WHERE telegram_id=?",
+        (user_id,)
+    ).fetchone()
+
+    referrer = conn.execute(
+        "SELECT * FROM users WHERE telegram_id=?",
+        (referrer_id,)
+    ).fetchone()
+
+    if not user or not referrer:
+        conn.close()
+        return False
+
+    if user["referred_by"] is not None:
+        conn.close()
+        return False
+
+    existing_referral = conn.execute(
+        "SELECT id FROM referrals WHERE referred_id=?",
+        (user_id,)
+    ).fetchone()
+
+    if existing_referral:
+        conn.close()
+        return False
+
+    now = datetime.now(ZoneInfo("Asia/Dhaka")).isoformat()
+
+    conn.execute(
+        """
+        UPDATE users
+        SET referred_by=?
+        WHERE telegram_id=?
+        """,
+        (referrer_id, user_id)
+    )
+
+    conn.execute(
+        """
+        UPDATE users
+        SET balance=balance+?,
+            total_earned=total_earned+?,
+            referrals=referrals+1
+        WHERE telegram_id=?
+        """,
+        (REFERRAL_REWARD, REFERRAL_REWARD, referrer_id)
+    )
+
+    conn.execute(
+        """
+        INSERT INTO referrals
+        (
+            referrer_id,
+            referred_id,
+            reward,
+            created_at
+        )
+        VALUES (?, ?, ?, ?)
+        """,
+        (
+            referrer_id,
+            user_id,
+            REFERRAL_REWARD,
+            now
+        )
+    )
+
+    conn.commit()
+    conn.close()
+
+    return True
 
 
 def owner_keyboard():
@@ -293,8 +411,19 @@ def get_referral_link(bot_username, user_id):
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data.clear()
+
     user = update.effective_user
-    db_user = ensure_user(user)
+
+    db_user_before = ensure_user(user)
+
+    start_parameter = None
+
+    if context.args:
+        start_parameter = context.args[0]
+
+    process_referral(user.id, start_parameter)
+
+    db_user = get_user(user.id)
 
     bot_username = context.bot.username
     referral_link = get_referral_link(bot_username, user.id)
@@ -808,10 +937,12 @@ async def owner_text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE)
         return
 
     mode = context.user_data.get("mode")
+
     if not mode:
         return
 
     text = (update.message.text or "").strip()
+
     if not text:
         return
 
@@ -819,7 +950,9 @@ async def owner_text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE)
         parts = text.split()
 
         if len(parts) != 2:
-            await update.message.reply_text("❌ Use exactly:\n<telegram_id> <amount>\n\nExample:\n123456789 100")
+            await update.message.reply_text(
+                "❌ Use exactly:\n<telegram_id> <amount>\n\nExample:\n123456789 100"
+            )
             return
 
         try:
@@ -834,6 +967,7 @@ async def owner_text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE)
             return
 
         conn = get_db()
+
         target = conn.execute(
             "SELECT * FROM users WHERE telegram_id=?",
             (telegram_id,)
@@ -855,8 +989,11 @@ async def owner_text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE)
         )
 
         conn.commit()
+
         new_balance = target["balance"] + amount
+
         conn.close()
+
         context.user_data.clear()
 
         await update.message.reply_text(
@@ -872,7 +1009,9 @@ async def owner_text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE)
         parts = text.split()
 
         if len(parts) != 2:
-            await update.message.reply_text("❌ Use exactly:\n<telegram_id> <amount>\n\nExample:\n123456789 100")
+            await update.message.reply_text(
+                "❌ Use exactly:\n<telegram_id> <amount>\n\nExample:\n123456789 100"
+            )
             return
 
         try:
@@ -887,6 +1026,7 @@ async def owner_text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE)
             return
 
         conn = get_db()
+
         target = conn.execute(
             "SELECT * FROM users WHERE telegram_id=?",
             (telegram_id,)
@@ -899,7 +1039,9 @@ async def owner_text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
         if target["balance"] < amount:
             conn.close()
-            await update.message.reply_text(f"❌ User only has ৳{target['balance']:.2f}.")
+            await update.message.reply_text(
+                f"❌ User only has ৳{target['balance']:.2f}."
+            )
             return
 
         conn.execute(
@@ -908,8 +1050,11 @@ async def owner_text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE)
         )
 
         conn.commit()
+
         new_balance = target["balance"] - amount
+
         conn.close()
+
         context.user_data.clear()
 
         await update.message.reply_text(
@@ -935,6 +1080,7 @@ async def owner_text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE)
             return
 
         context.user_data.clear()
+
         status = "🔴 BLOCKED" if target["blocked"] else "🟢 ACTIVE"
 
         await update.message.reply_text(
@@ -954,19 +1100,25 @@ async def owner_text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
     if mode == "website_button":
         set_setting("website_label", text)
+
         context.user_data["mode"] = "website_url"
 
         await update.message.reply_text(
-            "✅ Button text saved.\n\nNow send the new website URL.\n\nSend /cancel to cancel."
+            "✅ Button text saved.\n\n"
+            "Now send the new website URL.\n\n"
+            "Send /cancel to cancel."
         )
         return
 
     if mode == "website_url":
         if not text.startswith(("https://", "http://")):
-            await update.message.reply_text("❌ Send a valid URL beginning with http:// or https://.")
+            await update.message.reply_text(
+                "❌ Send a valid URL beginning with http:// or https://."
+            )
             return
 
         set_setting("website_url", text)
+
         context.user_data.clear()
 
         await update.message.reply_text(
@@ -977,6 +1129,7 @@ async def owner_text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
     if mode == "referrals_button":
         set_setting("referrals_label", text)
+
         context.user_data.clear()
 
         await update.message.reply_text(
@@ -990,6 +1143,7 @@ async def owner_text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
         if not channel:
             context.user_data.clear()
+
             await update.message.reply_text(
                 "❌ Post target was lost. Open Post Editor again.",
                 reply_markup=owner_keyboard()
@@ -1022,6 +1176,7 @@ async def owner_text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE)
 async def cancel_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if is_owner(update.effective_user.id):
         context.user_data.clear()
+
         await update.message.reply_text(
             "❌ Cancelled.",
             reply_markup=owner_keyboard()
@@ -1116,6 +1271,7 @@ async def block_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     conn = get_db()
+
     user = conn.execute(
         "SELECT first_name FROM users WHERE telegram_id=?",
         (telegram_id,)
@@ -1130,6 +1286,7 @@ async def block_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "UPDATE users SET blocked=1 WHERE telegram_id=?",
         (telegram_id,)
     )
+
     conn.commit()
     conn.close()
 
@@ -1155,6 +1312,7 @@ async def unblock_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     conn = get_db()
+
     user = conn.execute(
         "SELECT first_name FROM users WHERE telegram_id=?",
         (telegram_id,)
@@ -1169,6 +1327,7 @@ async def unblock_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "UPDATE users SET blocked=0 WHERE telegram_id=?",
         (telegram_id,)
     )
+
     conn.commit()
     conn.close()
 
@@ -1180,9 +1339,11 @@ async def unblock_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def my_referrals_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
+
     await query.answer()
 
     user = query.from_user
+
     ensure_user(user)
 
     conn = get_db()
@@ -1257,7 +1418,9 @@ def main():
 
     application.add_handler(
         MessageHandler(
-            filters.TEXT & ~filters.COMMAND & filters.User(user_id=list(OWNER_IDS)),
+            filters.TEXT
+            & ~filters.COMMAND
+            & filters.User(user_id=list(OWNER_IDS)),
             owner_text_handler
         )
     )
