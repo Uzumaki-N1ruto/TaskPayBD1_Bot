@@ -1,11 +1,11 @@
 import os
 import threading
 import asyncio
-import asyncpg
-from flask import Flask
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
+import asyncpg
+from flask import Flask
 from telegram import (
     Update,
     InlineKeyboardButton,
@@ -23,6 +23,7 @@ from telegram.ext import (
 
 BOT_TOKEN = os.environ.get("BOT_TOKEN")
 DATABASE_URL = os.environ.get("DATABASE_URL")
+
 WEBSITE_URL = os.environ.get(
     "WEBSITE_URL",
     "https://uzumaki-n1ruto.github.io/TaskPayBD1_Bot/"
@@ -45,53 +46,44 @@ DEFAULT_SETTINGS = {
     "website_label": "🌐 Open Website",
     "website_url": WEBSITE_URL,
     "referrals_label": "👥 My Referrals",
-    "welcome_text": (
-        "👋 Welcome to TaskPayBD, {first_name}!\n\n"
-        "💰 Balance: ৳{balance:.2f}\n"
-        "👥 Referrals: {referrals}\n\n"
-        "🔗 Your referral link:\n{referral_link}"
-    )
+    "welcome_text": "👋 Welcome to TaskPayBD, {first_name}!\n\n💰 Balance: ৳{balance:.2f}\n👥 Referrals: {referrals}\n\n🔗 Your referral link:\n{referral_link}"
 }
 
-app = Flask(__name__)
-
-db_pool = None
+flask_app = Flask(__name__)
 
 
-@app.route("/")
+@flask_app.route("/")
+def home():
+    return "TaskPayBD Bot is running."
+
+
+@flask_app.route("/health")
 def health():
-    return "TaskPayBD Bot is running!", 200
+    return "OK"
 
 
-@app.route("/health")
-def health_check():
-    return "OK", 200
+def run_web_server():
+    port = int(os.environ.get("PORT", 10000))
+    flask_app.run(
+        host="0.0.0.0",
+        port=port,
+        use_reloader=False
+    )
 
 
-def now_dhaka():
-    return datetime.now(ZoneInfo("Asia/Dhaka")).isoformat()
+async def create_pool():
+    if not DATABASE_URL:
+        raise RuntimeError("DATABASE_URL is missing.")
+
+    return await asyncpg.create_pool(
+        DATABASE_URL,
+        min_size=1,
+        max_size=5,
+        command_timeout=30
+    )
 
 
-async def get_pool():
-    global db_pool
-
-    if db_pool is None:
-        if not DATABASE_URL:
-            raise RuntimeError("DATABASE_URL is missing.")
-
-        db_pool = await asyncpg.create_pool(
-            DATABASE_URL,
-            min_size=1,
-            max_size=5,
-            command_timeout=30
-        )
-
-    return db_pool
-
-
-async def setup_database():
-    pool = await get_pool()
-
+async def setup_database(pool):
     async with pool.acquire() as conn:
         await conn.execute("""
             CREATE TABLE IF NOT EXISTS users (
@@ -109,24 +101,30 @@ async def setup_database():
                 ads_day TEXT NOT NULL,
                 referred_by BIGINT,
                 blocked INTEGER NOT NULL DEFAULT 0
-            );
+            )
+        """)
 
+        await conn.execute("""
             CREATE TABLE IF NOT EXISTS referrals (
                 id BIGSERIAL PRIMARY KEY,
                 referrer_id BIGINT NOT NULL,
                 referred_id BIGINT NOT NULL UNIQUE,
                 reward DOUBLE PRECISION NOT NULL,
                 created_at TEXT NOT NULL
-            );
+            )
+        """)
 
+        await conn.execute("""
             CREATE TABLE IF NOT EXISTS task_claims (
                 telegram_id BIGINT NOT NULL,
                 task_key TEXT NOT NULL,
                 status TEXT NOT NULL DEFAULT 'join',
                 completed_at TEXT,
                 PRIMARY KEY (telegram_id, task_key)
-            );
+            )
+        """)
 
+        await conn.execute("""
             CREATE TABLE IF NOT EXISTS ad_sessions (
                 id TEXT PRIMARY KEY,
                 telegram_id BIGINT NOT NULL,
@@ -134,8 +132,10 @@ async def setup_database():
                 started_at BIGINT NOT NULL,
                 completed_at BIGINT,
                 rewarded INTEGER NOT NULL DEFAULT 0
-            );
+            )
+        """)
 
+        await conn.execute("""
             CREATE TABLE IF NOT EXISTS withdrawals (
                 id BIGSERIAL PRIMARY KEY,
                 telegram_id BIGINT NOT NULL,
@@ -148,18 +148,24 @@ async def setup_database():
                 created_at TEXT NOT NULL,
                 processed_at TEXT,
                 note TEXT DEFAULT ''
-            );
+            )
+        """)
 
+        await conn.execute("""
             CREATE TABLE IF NOT EXISTS bot_settings (
                 key TEXT PRIMARY KEY,
                 value TEXT NOT NULL
-            );
+            )
+        """)
 
+        await conn.execute("""
             CREATE INDEX IF NOT EXISTS idx_withdrawals_user
-            ON withdrawals(telegram_id);
+            ON withdrawals(telegram_id)
+        """)
 
+        await conn.execute("""
             CREATE INDEX IF NOT EXISTS idx_ad_sessions_user
-            ON ad_sessions(telegram_id);
+            ON ad_sessions(telegram_id)
         """)
 
         for key, value in DEFAULT_SETTINGS.items():
@@ -174,8 +180,8 @@ async def setup_database():
             )
 
 
-async def get_setting(key):
-    pool = await get_pool()
+async def get_setting(context, key):
+    pool = context.application.bot_data["pool"]
 
     async with pool.acquire() as conn:
         value = await conn.fetchval(
@@ -189,8 +195,8 @@ async def get_setting(key):
     return DEFAULT_SETTINGS.get(key, "")
 
 
-async def set_setting(key, value):
-    pool = await get_pool()
+async def set_setting(context, key, value):
+    pool = context.application.bot_data["pool"]
 
     async with pool.acquire() as conn:
         await conn.execute(
@@ -209,8 +215,8 @@ def is_owner(user_id):
     return user_id in OWNER_IDS
 
 
-async def get_user(user_id):
-    pool = await get_pool()
+async def get_user(context, user_id):
+    pool = context.application.bot_data["pool"]
 
     async with pool.acquire() as conn:
         return await conn.fetchrow(
@@ -219,13 +225,16 @@ async def get_user(user_id):
         )
 
 
-async def ensure_user(user):
-    existing = await get_user(user.id)
+async def ensure_user(context, user):
+    pool = context.application.bot_data["pool"]
 
-    if existing:
-        pool = await get_pool()
+    async with pool.acquire() as conn:
+        existing = await conn.fetchrow(
+            "SELECT * FROM users WHERE telegram_id=$1",
+            user.id
+        )
 
-        async with pool.acquire() as conn:
+        if existing:
             await conn.execute(
                 """
                 UPDATE users
@@ -245,14 +254,12 @@ async def ensure_user(user):
                 user.id
             )
 
-    pool = await get_pool()
+        now = datetime.now(ZoneInfo("Asia/Dhaka"))
+        today = now.strftime("%Y-%m-%d")
 
-    now = datetime.now(ZoneInfo("Asia/Dhaka"))
-
-    async with pool.acquire() as conn:
         await conn.execute(
             """
-            INSERT INTO users (
+            INSERT INTO users(
                 telegram_id,
                 first_name,
                 last_name,
@@ -261,7 +268,7 @@ async def ensure_user(user):
                 joined_at,
                 ads_day
             )
-            VALUES($1, $2, $3, $4, $5, $6, $7)
+            VALUES($1,$2,$3,$4,$5,$6,$7)
             ON CONFLICT(telegram_id) DO NOTHING
             """,
             user.id,
@@ -270,13 +277,17 @@ async def ensure_user(user):
             user.username or "",
             "",
             now.isoformat(),
-            now.strftime("%Y-%m-%d")
+            today
         )
 
         return await conn.fetchrow(
             "SELECT * FROM users WHERE telegram_id=$1",
             user.id
         )
+
+
+def get_referral_link(bot_username, user_id):
+    return f"https://t.me/{bot_username}?start=r{user_id}"
 
 
 def owner_keyboard():
@@ -371,132 +382,143 @@ def post_editor_keyboard():
     ])
 
 
-def get_referral_link(bot_username, user_id):
-    return f"https://t.me/{bot_username}?start=r{user_id}"
-
-
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data.clear()
 
     user = update.effective_user
+    db_user = await ensure_user(context, user)
 
-    db_user = await ensure_user(user)
+    referral_parameter = None
 
-    args = context.args
+    if context.args:
+        referral_parameter = context.args[0]
 
-    if args:
-        referral_code = args[0]
+    if referral_parameter and referral_parameter.startswith("r"):
+        try:
+            referrer_id = int(referral_parameter[1:])
 
-        if referral_code.startswith("r"):
-            try:
-                referrer_id = int(referral_code[1:])
-            except ValueError:
-                referrer_id = None
-
-            if (
-                referrer_id
-                and referrer_id != user.id
-            ):
-                pool = await get_pool()
+            if referrer_id != user.id:
+                pool = context.application.bot_data["pool"]
 
                 async with pool.acquire() as conn:
                     async with conn.transaction():
-                        already_referred = await conn.fetchval(
+                        current_referral = await conn.fetchrow(
                             """
-                            SELECT 1
-                            FROM referrals
-                            WHERE referred_id=$1
+                            SELECT referred_by
+                            FROM users
+                            WHERE telegram_id=$1
                             """,
                             user.id
                         )
 
-                        referrer_exists = await conn.fetchval(
-                            """
-                            SELECT 1
-                            FROM users
-                            WHERE telegram_id=$1
-                            """,
-                            referrer_id
-                        )
-
-                        if not already_referred and referrer_exists:
-                            await conn.execute(
+                        if current_referral and current_referral["referred_by"] is None:
+                            referrer_exists = await conn.fetchrow(
                                 """
-                                INSERT INTO referrals(
-                                    referrer_id,
-                                    referred_id,
-                                    reward,
-                                    created_at
-                                )
-                                VALUES($1, $2, $3, $4)
-                                ON CONFLICT(referred_id) DO NOTHING
+                                SELECT telegram_id
+                                FROM users
+                                WHERE telegram_id=$1
                                 """,
-                                referrer_id,
-                                user.id,
-                                REFERRAL_REWARD,
-                                now_dhaka()
-                            )
-
-                            inserted = await conn.fetchval(
-                                """
-                                SELECT 1
-                                FROM referrals
-                                WHERE referred_id=$1
-                                AND referrer_id=$2
-                                """,
-                                user.id,
                                 referrer_id
                             )
 
-                            if inserted:
-                                await conn.execute(
+                            if referrer_exists:
+                                already_referred = await conn.fetchrow(
                                     """
-                                    UPDATE users
-                                    SET referrals=referrals+1,
-                                        balance=balance+$1,
-                                        total_earned=total_earned+$1
-                                    WHERE telegram_id=$2
+                                    SELECT id
+                                    FROM referrals
+                                    WHERE referred_id=$1
                                     """,
-                                    REFERRAL_REWARD,
-                                    referrer_id
-                                )
-
-                                await conn.execute(
-                                    """
-                                    UPDATE users
-                                    SET referred_by=$1
-                                    WHERE telegram_id=$2
-                                    AND referred_by IS NULL
-                                    """,
-                                    referrer_id,
                                     user.id
                                 )
 
-    bot_username = context.bot.username
+                                if not already_referred:
+                                    now = datetime.now(
+                                        ZoneInfo("Asia/Dhaka")
+                                    ).isoformat()
 
-    referral_link = get_referral_link(
-        bot_username,
-        user.id
+                                    await conn.execute(
+                                        """
+                                        UPDATE users
+                                        SET referred_by=$1
+                                        WHERE telegram_id=$2
+                                        """,
+                                        referrer_id,
+                                        user.id
+                                    )
+
+                                    await conn.execute(
+                                        """
+                                        UPDATE users
+                                        SET referrals=referrals+1,
+                                            balance=balance+$1,
+                                            total_earned=total_earned+$1
+                                        WHERE telegram_id=$2
+                                        """,
+                                        REFERRAL_REWARD,
+                                        referrer_id
+                                    )
+
+                                    await conn.execute(
+                                        """
+                                        INSERT INTO referrals(
+                                            referrer_id,
+                                            referred_id,
+                                            reward,
+                                            created_at
+                                        )
+                                        VALUES($1,$2,$3,$4)
+                                        ON CONFLICT(referred_id) DO NOTHING
+                                        """,
+                                        referrer_id,
+                                        user.id,
+                                        REFERRAL_REWARD,
+                                        now
+                                    )
+
+                db_user = await get_user(context, user)
+
+        except (ValueError, TypeError):
+            pass
+
+    bot_username = context.bot.username
+    referral_link = get_referral_link(bot_username, user.id)
+
+    website_label = await get_setting(
+        context,
+        "website_label"
     )
 
-    db_user = await get_user(user.id)
+    website_url = await get_setting(
+        context,
+        "website_url"
+    )
+
+    referrals_label = await get_setting(
+        context,
+        "referrals_label"
+    )
+
+    welcome_text = await get_setting(
+        context,
+        "welcome_text"
+    )
 
     keyboard = [
         [
             InlineKeyboardButton(
-                await get_setting("website_label"),
-                url=await get_setting("website_url")
+                website_label,
+                url=website_url
             )
         ],
         [
             InlineKeyboardButton(
-                await get_setting("referrals_label"),
+                referrals_label,
                 callback_data="my_referrals"
             )
         ]
     ]
 
-    message = (await get_setting("welcome_text")).format(
+    message = welcome_text.format(
         first_name=user.first_name or "User",
         balance=db_user["balance"],
         referrals=db_user["referrals"],
@@ -520,10 +542,9 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def referrals(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
+    db_user = await ensure_user(context, user)
 
-    db_user = await ensure_user(user)
-
-    pool = await get_pool()
+    pool = context.application.bot_data["pool"]
 
     async with pool.acquire() as conn:
         referred_users = await conn.fetch(
@@ -546,8 +567,7 @@ async def referrals(update: Update, context: ContextTypes.DEFAULT_TYPE):
     message = (
         f"👥 Your Referrals\n\n"
         f"Total referrals: {db_user['referrals']}\n"
-        f"Referral earnings: "
-        f"৳{db_user['referrals'] * REFERRAL_REWARD:.2f}\n\n"
+        f"Referral earnings: ৳{db_user['referrals'] * REFERRAL_REWARD:.2f}\n\n"
         f"🔗 Your referral link:\n{referral_link}"
     )
 
@@ -575,7 +595,10 @@ async def referrals(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def balance(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    db_user = await ensure_user(update.effective_user)
+    db_user = await ensure_user(
+        context,
+        update.effective_user
+    )
 
     await update.message.reply_text(
         f"💰 Your Balance\n\n"
@@ -587,7 +610,10 @@ async def balance(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    db_user = await ensure_user(update.effective_user)
+    db_user = await ensure_user(
+        context,
+        update.effective_user
+    )
 
     await update.message.reply_text(
         f"📊 Your TaskPayBD Stats\n\n"
@@ -635,14 +661,92 @@ async def admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_markup=owner_keyboard()
     )
 
-    try:
-        remove_message = await update.message.reply_text(
-            "\u2063",
-            reply_markup=ReplyKeyboardRemove()
-        )
-        await remove_message.delete()
-    except Exception:
-        pass
+
+async def process_withdrawal(query, context, withdrawal_id, status):
+    pool = context.application.bot_data["pool"]
+
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            withdrawal = await conn.fetchrow(
+                """
+                SELECT *
+                FROM withdrawals
+                WHERE id=$1
+                FOR UPDATE
+                """,
+                withdrawal_id
+            )
+
+            if not withdrawal:
+                await query.answer(
+                    "Withdrawal not found.",
+                    show_alert=True
+                )
+                return
+
+            if withdrawal["status"] != "pending":
+                await query.answer(
+                    "Already processed.",
+                    show_alert=True
+                )
+                return
+
+            if status == "rejected":
+                await conn.execute(
+                    """
+                    UPDATE users
+                    SET balance=balance+$1,
+                        withdrawn=withdrawn-$1
+                    WHERE telegram_id=$2
+                    """,
+                    withdrawal["bdt_value"],
+                    withdrawal["telegram_id"]
+                )
+
+            processed_at = datetime.now(
+                ZoneInfo("Asia/Dhaka")
+            ).isoformat()
+
+            await conn.execute(
+                """
+                UPDATE withdrawals
+                SET status=$1,
+                    processed_at=$2
+                WHERE id=$3
+                """,
+                status,
+                processed_at,
+                withdrawal_id
+            )
+
+    emoji = "✅" if status == "paid" else "❌"
+
+    await query.answer(
+        f"{emoji} Withdrawal #{withdrawal_id} {status}.",
+        show_alert=True
+    )
+
+    await query.edit_message_text(
+        f"{emoji} Withdrawal #{withdrawal_id}\n\n"
+        f"Status: {status.upper()}\n"
+        f"Amount: {withdrawal['amount']:.2f} "
+        f"{withdrawal['currency']}\n"
+        f"BDT value: ৳{withdrawal['bdt_value']:.2f}",
+        reply_markup=InlineKeyboardMarkup([
+            [
+                InlineKeyboardButton(
+                    "💸 Withdrawals",
+                    callback_data="admin_withdrawals"
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    "🔙 Admin Panel",
+                    callback_data="admin_home"
+                )
+            ]
+        ])
+    )
 
 
 async def admin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -660,6 +764,7 @@ async def admin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if action.startswith("pay_"):
         await process_withdrawal(
             query,
+            context,
             int(action.split("_")[1]),
             "paid"
         )
@@ -668,6 +773,7 @@ async def admin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if action.startswith("reject_"):
         await process_withdrawal(
             query,
+            context,
             int(action.split("_")[1]),
             "rejected"
         )
@@ -693,31 +799,38 @@ async def admin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
-    if action == "admin_stats":
-        pool = await get_pool()
+    pool = context.application.bot_data["pool"]
 
+    if action == "admin_stats":
         async with pool.acquire() as conn:
             users = await conn.fetchval(
                 "SELECT COUNT(*) FROM users"
             )
+
             active = await conn.fetchval(
                 "SELECT COUNT(*) FROM users WHERE blocked=0"
             )
+
             blocked = await conn.fetchval(
                 "SELECT COUNT(*) FROM users WHERE blocked=1"
             )
+
             balance_total = await conn.fetchval(
                 "SELECT COALESCE(SUM(balance),0) FROM users"
             )
+
             earned = await conn.fetchval(
                 "SELECT COALESCE(SUM(total_earned),0) FROM users"
             )
+
             withdrawn = await conn.fetchval(
                 "SELECT COALESCE(SUM(withdrawn),0) FROM users"
             )
+
             refs = await conn.fetchval(
                 "SELECT COALESCE(SUM(referrals),0) FROM users"
             )
+
             pending = await conn.fetchval(
                 """
                 SELECT COUNT(*)
@@ -748,8 +861,6 @@ async def admin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     if action in {"admin_withdrawals", "admin_pending"}:
-        pool = await get_pool()
-
         async with pool.acquire() as conn:
             if action == "admin_pending":
                 rows = await conn.fetch(
@@ -836,8 +947,6 @@ async def admin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     if action == "admin_users":
-        pool = await get_pool()
-
         async with pool.acquire() as conn:
             rows = await conn.fetch(
                 """
@@ -857,10 +966,7 @@ async def admin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 "SELECT COUNT(*) FROM users"
             )
 
-        text = (
-            f"👥 USERS\n\n"
-            f"Total users: {total}\n\n"
-        )
+        text = f"👥 USERS\n\nTotal users: {total}\n\n"
 
         for row in rows:
             username = (
@@ -898,8 +1004,7 @@ async def admin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if action == "admin_balance":
         await query.edit_message_text(
-            "💰 BALANCE CONTROL\n\n"
-            "Choose an action:",
+            "💰 BALANCE CONTROL\n\nChoose an action:",
             reply_markup=balance_keyboard()
         )
         return
@@ -945,8 +1050,7 @@ async def admin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         await query.edit_message_text(
             "🔘 BUTTON EDITOR\n\n"
-            "These settings are saved in PostgreSQL "
-            "and affect the bot menu.",
+            "These settings are saved in PostgreSQL.",
             reply_markup=button_editor_keyboard()
         )
         return
@@ -977,7 +1081,7 @@ async def admin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if action == "button_reset":
         for key, value in DEFAULT_SETTINGS.items():
-            await set_setting(key, value)
+            await set_setting(context, key, value)
 
         await query.edit_message_text(
             "♻️ Buttons reset to default.",
@@ -1029,100 +1133,9 @@ async def admin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "Send /cancel to cancel.\n\n"
             "The bot must be an admin in that channel."
         )
-        return
 
 
-async def process_withdrawal(
-    query,
-    withdrawal_id,
-    status
-):
-    pool = await get_pool()
-
-    async with pool.acquire() as conn:
-        async with conn.transaction():
-            withdrawal = await conn.fetchrow(
-                """
-                SELECT *
-                FROM withdrawals
-                WHERE id=$1
-                FOR UPDATE
-                """,
-                withdrawal_id
-            )
-
-            if not withdrawal:
-                await query.answer(
-                    "Withdrawal not found.",
-                    show_alert=True
-                )
-                return
-
-            if withdrawal["status"] != "pending":
-                await query.answer(
-                    "Already processed.",
-                    show_alert=True
-                )
-                return
-
-            if status == "rejected":
-                await conn.execute(
-                    """
-                    UPDATE users
-                    SET balance=balance+$1,
-                        withdrawn=withdrawn-$1
-                    WHERE telegram_id=$2
-                    """,
-                    withdrawal["bdt_value"],
-                    withdrawal["telegram_id"]
-                )
-
-            await conn.execute(
-                """
-                UPDATE withdrawals
-                SET status=$1,
-                    processed_at=$2
-                WHERE id=$3
-                """,
-                status,
-                now_dhaka(),
-                withdrawal_id
-            )
-
-    emoji = "✅" if status == "paid" else "❌"
-
-    await query.answer(
-        f"{emoji} Withdrawal #{withdrawal_id} {status}.",
-        show_alert=True
-    )
-
-    await query.edit_message_text(
-        f"{emoji} Withdrawal #{withdrawal_id}\n\n"
-        f"Status: {status.upper()}\n"
-        f"Amount: {withdrawal['amount']:.2f} "
-        f"{withdrawal['currency']}\n"
-        f"BDT value: ৳{withdrawal['bdt_value']:.2f}",
-        reply_markup=InlineKeyboardMarkup([
-            [
-                InlineKeyboardButton(
-                    "💸 Withdrawals",
-                    callback_data="admin_withdrawals"
-                )
-            ],
-            [
-                InlineKeyboardButton(
-                    "🔙 Admin Panel",
-                    callback_data="admin_home"
-                )
-            ]
-        ])
-    )
-
-
-async def owner_text_handler(
-    update: Update,
-    context: ContextTypes.DEFAULT_TYPE
-):
+async def owner_text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_owner(update.effective_user.id):
         return
 
@@ -1135,6 +1148,8 @@ async def owner_text_handler(
 
     if not text:
         return
+
+    pool = context.application.bot_data["pool"]
 
     if mode == "add_balance":
         parts = text.split()
@@ -1163,8 +1178,6 @@ async def owner_text_handler(
             )
             return
 
-        pool = await get_pool()
-
         async with pool.acquire() as conn:
             target = await conn.fetchrow(
                 "SELECT * FROM users WHERE telegram_id=$1",
@@ -1188,7 +1201,7 @@ async def owner_text_handler(
                 telegram_id
             )
 
-            new_balance = target["balance"] + amount
+        new_balance = target["balance"] + amount
 
         context.user_data.clear()
 
@@ -1228,8 +1241,6 @@ async def owner_text_handler(
             )
             return
 
-        pool = await get_pool()
-
         async with pool.acquire() as conn:
             target = await conn.fetchrow(
                 "SELECT * FROM users WHERE telegram_id=$1",
@@ -1244,8 +1255,7 @@ async def owner_text_handler(
 
             if target["balance"] < amount:
                 await update.message.reply_text(
-                    f"❌ User only has "
-                    f"৳{target['balance']:.2f}."
+                    f"❌ User only has ৳{target['balance']:.2f}."
                 )
                 return
 
@@ -1259,7 +1269,7 @@ async def owner_text_handler(
                 telegram_id
             )
 
-            new_balance = target["balance"] - amount
+        new_balance = target["balance"] - amount
 
         context.user_data.clear()
 
@@ -1281,7 +1291,10 @@ async def owner_text_handler(
             )
             return
 
-        target = await get_user(telegram_id)
+        target = await get_user(
+            context,
+            telegram_id
+        )
 
         if not target:
             await update.message.reply_text(
@@ -1301,17 +1314,13 @@ async def owner_text_handler(
             f"👤 USER INFORMATION\n\n"
             f"Name: {target['first_name']} "
             f"{target['last_name']}\n"
-            f"Username: "
-            f"@{target['username'] if target['username'] else 'none'}\n"
+            f"Username: @{target['username'] if target['username'] else 'none'}\n"
             f"Telegram ID: {target['telegram_id']}\n\n"
             f"💰 Balance: ৳{target['balance']:.2f}\n"
-            f"📈 Total earned: "
-            f"৳{target['total_earned']:.2f}\n"
-            f"💸 Withdrawn: "
-            f"৳{target['withdrawn']:.2f}\n"
+            f"📈 Total earned: ৳{target['total_earned']:.2f}\n"
+            f"💸 Withdrawn: ৳{target['withdrawn']:.2f}\n"
             f"👥 Referrals: {target['referrals']}\n"
-            f"📺 Ads watched: "
-            f"{target['ads_watched']}\n"
+            f"📺 Ads watched: {target['ads_watched']}\n"
             f"📌 Status: {status}",
             reply_markup=owner_keyboard()
         )
@@ -1319,6 +1328,7 @@ async def owner_text_handler(
 
     if mode == "website_button":
         await set_setting(
+            context,
             "website_label",
             text
         )
@@ -1335,12 +1345,13 @@ async def owner_text_handler(
     if mode == "website_url":
         if not text.startswith(("https://", "http://")):
             await update.message.reply_text(
-                "❌ Send a valid URL beginning "
-                "with http:// or https://."
+                "❌ Send a valid URL beginning with "
+                "http:// or https://."
             )
             return
 
         await set_setting(
+            context,
             "website_url",
             text
         )
@@ -1355,6 +1366,7 @@ async def owner_text_handler(
 
     if mode == "referrals_button":
         await set_setting(
+            context,
             "referrals_label",
             text
         )
@@ -1368,16 +1380,13 @@ async def owner_text_handler(
         return
 
     if mode == "post_message":
-        channel = context.user_data.get(
-            "post_channel"
-        )
+        channel = context.user_data.get("post_channel")
 
         if not channel:
             context.user_data.clear()
 
             await update.message.reply_text(
-                "❌ Post target was lost. "
-                "Open Post Editor again.",
+                "❌ Post target was lost.",
                 reply_markup=owner_keyboard()
             )
             return
@@ -1404,13 +1413,9 @@ async def owner_text_handler(
             f"Message ID: {sent.message_id}",
             reply_markup=owner_keyboard()
         )
-        return
 
 
-async def cancel_command(
-    update: Update,
-    context: ContextTypes.DEFAULT_TYPE
-):
+async def cancel_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if is_owner(update.effective_user.id):
         context.user_data.clear()
 
@@ -1420,10 +1425,7 @@ async def cancel_command(
         )
 
 
-async def user_command(
-    update: Update,
-    context: ContextTypes.DEFAULT_TYPE
-):
+async def user_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_owner(update.effective_user.id):
         await update.message.reply_text(
             "⛔ Owner access only."
@@ -1444,7 +1446,10 @@ async def user_command(
         )
         return
 
-    user = await get_user(telegram_id)
+    user = await get_user(
+        context,
+        telegram_id
+    )
 
     if not user:
         await update.message.reply_text(
@@ -1462,26 +1467,19 @@ async def user_command(
         f"👤 User Information\n\n"
         f"Name: {user['first_name']} "
         f"{user['last_name']}\n"
-        f"Username: "
-        f"@{user['username'] if user['username'] else 'none'}\n"
+        f"Username: @{user['username'] if user['username'] else 'none'}\n"
         f"Telegram ID: {user['telegram_id']}\n\n"
         f"💰 Balance: ৳{user['balance']:.2f}\n"
-        f"📈 Total earned: "
-        f"৳{user['total_earned']:.2f}\n"
-        f"💸 Withdrawn: "
-        f"৳{user['withdrawn']:.2f}\n"
+        f"📈 Total earned: ৳{user['total_earned']:.2f}\n"
+        f"💸 Withdrawn: ৳{user['withdrawn']:.2f}\n"
         f"👥 Referrals: {user['referrals']}\n"
-        f"📺 Ads watched: "
-        f"{user['ads_watched']}\n"
+        f"📺 Ads watched: {user['ads_watched']}\n"
         f"📌 Status: {status}",
         reply_markup=owner_keyboard()
     )
 
 
-async def add_balance(
-    update: Update,
-    context: ContextTypes.DEFAULT_TYPE
-):
+async def add_balance(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_owner(update.effective_user.id):
         await update.message.reply_text(
             "⛔ Owner access only."
@@ -1500,10 +1498,7 @@ async def add_balance(
     )
 
 
-async def remove_balance(
-    update: Update,
-    context: ContextTypes.DEFAULT_TYPE
-):
+async def remove_balance(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_owner(update.effective_user.id):
         await update.message.reply_text(
             "⛔ Owner access only."
@@ -1522,10 +1517,7 @@ async def remove_balance(
     )
 
 
-async def block_user(
-    update: Update,
-    context: ContextTypes.DEFAULT_TYPE
-):
+async def block_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_owner(update.effective_user.id):
         await update.message.reply_text(
             "⛔ Owner access only."
@@ -1552,7 +1544,7 @@ async def block_user(
         )
         return
 
-    pool = await get_pool()
+    pool = context.application.bot_data["pool"]
 
     async with pool.acquire() as conn:
         user = await conn.fetchrow(
@@ -1585,10 +1577,7 @@ async def block_user(
     )
 
 
-async def unblock_user(
-    update: Update,
-    context: ContextTypes.DEFAULT_TYPE
-):
+async def unblock_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_owner(update.effective_user.id):
         await update.message.reply_text(
             "⛔ Owner access only."
@@ -1609,7 +1598,7 @@ async def unblock_user(
         )
         return
 
-    pool = await get_pool()
+    pool = context.application.bot_data["pool"]
 
     async with pool.acquire() as conn:
         user = await conn.fetchrow(
@@ -1642,26 +1631,24 @@ async def unblock_user(
     )
 
 
-async def my_referrals_callback(
-    update: Update,
-    context: ContextTypes.DEFAULT_TYPE
-):
+async def my_referrals_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
 
     await query.answer()
 
     user = query.from_user
 
-    await ensure_user(user)
+    await ensure_user(
+        context,
+        user
+    )
 
-    pool = await get_pool()
+    pool = context.application.bot_data["pool"]
 
     async with pool.acquire() as conn:
         referred_users = await conn.fetch(
             """
-            SELECT u.first_name,
-                   u.username,
-                   r.created_at
+            SELECT u.first_name, u.username
             FROM referrals r
             JOIN users u
             ON u.telegram_id=r.referred_id
@@ -1697,19 +1684,21 @@ async def my_referrals_callback(
     await query.message.reply_text(text)
 
 
-def run_web():
-    port = int(os.environ.get("PORT", 10000))
+async def post_init(application):
+    pool = await create_pool()
 
-    app.run(
-        host="0.0.0.0",
-        port=port,
-        debug=False,
-        use_reloader=False
-    )
+    application.bot_data["pool"] = pool
+
+    await setup_database(pool)
+
+    print("PostgreSQL database enabled.")
 
 
-async def initialize():
-    await setup_database()
+async def post_shutdown(application):
+    pool = application.bot_data.get("pool")
+
+    if pool:
+        await pool.close()
 
 
 def main():
@@ -1723,11 +1712,16 @@ def main():
             "DATABASE_URL is missing."
         )
 
-    asyncio.run(initialize())
+    threading.Thread(
+        target=run_web_server,
+        daemon=True
+    ).start()
 
     application = (
         Application.builder()
         .token(BOT_TOKEN)
+        .post_init(post_init)
+        .post_shutdown(post_shutdown)
         .build()
     )
 
@@ -1803,15 +1797,11 @@ def main():
     )
 
     print("TaskPayBD bot is running...")
-    print("PostgreSQL database enabled.")
     print(f"Owners: {OWNER_IDS}")
 
-    threading.Thread(
-        target=run_web,
-        daemon=True
-    ).start()
-
-    application.run_polling()
+    application.run_polling(
+        drop_pending_updates=False
+    )
 
 
 if __name__ == "__main__":
