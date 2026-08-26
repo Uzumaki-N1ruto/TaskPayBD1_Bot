@@ -251,15 +251,19 @@ def init_db():
 
 def validate_init_data(init_data):
     if not BOT_TOKEN:
-        raise ValueError("BOT_TOKEN is not configured")
+        raise ValueError("Server BOT_TOKEN is not configured")
 
+    init_data = str(init_data or "").strip()
     if not init_data:
-        raise ValueError("Telegram initData is missing")
+        raise ValueError("Telegram initData was not received. Open the site from the Telegram bot's Web App button.")
 
-    pairs = dict(parse_qsl(init_data, keep_blank_values=True))
+    try:
+        pairs_list = parse_qsl(init_data, keep_blank_values=True)
+        pairs = dict(pairs_list)
+    except Exception:
+        raise ValueError("Invalid Telegram initData format")
 
-    received_hash = pairs.pop("hash", None)
-
+    received_hash = pairs.pop("hash", "")
     if not received_hash:
         raise ValueError("Telegram hash is missing")
 
@@ -270,51 +274,55 @@ def validate_init_data(init_data):
 
     secret_key = hmac.new(
         b"WebAppData",
-        BOT_TOKEN.encode(),
+        BOT_TOKEN.encode("utf-8"),
         hashlib.sha256
     ).digest()
 
     calculated = hmac.new(
         secret_key,
-        data_check_string.encode(),
+        data_check_string.encode("utf-8"),
         hashlib.sha256
     ).hexdigest()
 
     if not hmac.compare_digest(calculated, received_hash):
-        raise ValueError("Invalid Telegram initData")
+        raise ValueError("Telegram authentication failed. The bot token used by the API does not match the Telegram bot that opened this Mini App.")
 
     try:
         auth_date = int(pairs.get("auth_date", "0"))
     except Exception:
         raise ValueError("Invalid Telegram auth_date")
 
-    if abs(
-        int(datetime.now(timezone.utc).timestamp()) - auth_date
-    ) > 86400:
-        raise ValueError("Telegram initData expired")
+    now_ts = int(datetime.now(timezone.utc).timestamp())
+    if not auth_date or now_ts - auth_date > 86400 or auth_date - now_ts > 300:
+        raise ValueError("Telegram initData expired or has an invalid time")
 
     raw_user = pairs.get("user")
-
     if not raw_user:
         raise ValueError("Telegram user is missing")
 
     try:
-        user = json.loads(unquote(raw_user))
+        user = json.loads(raw_user)
     except Exception:
-        raise ValueError("Invalid Telegram user data")
+        try:
+            user = json.loads(unquote(raw_user))
+        except Exception:
+            raise ValueError("Invalid Telegram user data")
+
+    if not isinstance(user, dict) or not user.get("id"):
+        raise ValueError("Telegram user ID is missing")
 
     return pairs, user
 
 def auth_required(fn):
     @wraps(fn)
     def wrapper(*args, **kwargs):
+        body = request.get_json(silent=True) or {}
+        init_data = request.headers.get("X-Telegram-Init-Data", "").strip()
+        if not init_data:
+            init_data = str(body.get("initData", "")).strip()
+
         try:
-            pairs, tg_user = validate_init_data(
-                request.headers.get(
-                    "X-Telegram-Init-Data",
-                    ""
-                )
-            )
+            pairs, tg_user = validate_init_data(init_data)
         except Exception as e:
             return jsonify({
                 "ok": False,
