@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Bangla Task Hub</title>
+<script src='//libtl.com/sdk.js' data-zone='11618387' data-sdk='show_11618387'></script>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<style>
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;background:#f7f7fb}
+.bg-gradient-custom{background:linear-gradient(135deg,#8A2387 0%,#E94057 50%,#F27121 100%)}
+.btn-gradient{background:linear-gradient(135deg,#8A2387 0%,#E94057 100%)}
+.bg-profile-banner{background:linear-gradient(135deg,#8E2DE2 0%,#F000FF 50%,#FF512F 100%)}
+.btn-interactive{transition:transform .2s cubic-bezier(.34,1.56,.64,1),opacity .2s ease}
+.btn-interactive:hover{transform:scale(1.02)}
+.btn-interactive:active{transform:scale(.95)}
+@keyframes slideInOvershootLeft{0%{opacity:0;transform:translateX(-60px)}70%{transform:translateX(12px)}100%{opacity:1;transform:translateX(0)}}
+@keyframes slideInOvershootRight{0%{opacity:0;transform:translateX(60px)}70%{transform:translateX(-12px)}100%{opacity:1;transform:translateX(0)}}
+.animate-slide-left{animation:slideInOvershootLeft .5s cubic-bezier(.25,1,.5,1) forwards}
+.animate-slide-right{animation:slideInOvershootRight .5s cubic-bezier(.25,1,.5,1) forwards}
+</style>
+</head>
+<body class="text-gray-800 pb-20 select-none overflow-x-hidden">
+<main id="app-content" class="p-4 space-y-4 max-w-md mx-auto"></main>
+<div id="modal-container"></div>
+<nav class="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 flex justify-around py-2 max-w-md mx-auto shadow-lg z-40">
+<button onclick="switchTab('home')" id="nav-home" class="flex flex-col items-center text-purple-600 text-xs font-medium btn-interactive"><i class="fa-solid fa-house text-lg mb-1"></i>Home</button>
+<button onclick="switchTab('earn')" id="nav-earn" class="flex flex-col items-center text-gray-400 text-xs font-medium btn-interactive"><i class="fa-solid fa-list-check text-lg mb-1"></i>Earn</button>
+<button onclick="switchTab('refer')" id="nav-refer" class="flex flex-col items-center text-gray-400 text-xs font-medium btn-interactive"><i class="fa-solid fa-users text-lg mb-1"></i>Refer</button>
+<button onclick="switchTab('withdraw')" id="nav-withdraw" class="flex flex-col items-center text-gray-400 text-xs font-medium btn-interactive"><i class="fa-solid fa-wallet text-lg mb-1"></i>Withdraw</button>
+<button onclick="switchTab('profile')" id="nav-profile" class="flex flex-col items-center text-gray-400 text-xs font-medium btn-interactive"><i class="fa-solid fa-user text-lg mb-1"></i>Profile</button>
+</nav>
+<script>
+const tg=window.Telegram?.WebApp;
+if(tg){tg.ready();tg.expand();try{tg.setHeaderColor('#8A2387');tg.setBackgroundColor('#f7f7fb')}catch(e){}}
+const API_BASE='https://taskpaybd.onrender.com';
+const BDT_PER_USD=122.21;
+const MAX_ADS=10;
+const AD_SECONDS=25;
+const AD_REWARD=10;
+let state=null;
+let currentTab='home';
+let activeReferTab='leaderboard';
+let adSession=null;
+let adTimer=null;
+let rewardedAdRunning=false;
+
+function fmtCurr(bdt){const usd=bdt/BDT_PER_USD;return `৳ ${Number(bdt).toFixed(2)} ($${usd.toFixed(2)})`}
+function esc(v){return String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]))}
+async function api(path,options={}){
+  const initData=tg?.initData||'';
+  const headers={
+    'Content-Type':'application/json',
+    'X-Telegram-Init-Data':initData,
+    ...(options.headers||{})
+  };
+  const finalOptions={...options,headers};
+  if(path==='/api/bootstrap' && initData){
+    let body={};
+    try{body=options.body?JSON.parse(options.body):{}}catch(e){}
+    body.initData=initData;
+    finalOptions.body=JSON.stringify(body);
+  }
+  let response;
+  try{
+    response=await fetch(API_BASE+path,finalOptions);
+  }catch(e){
+    throw new Error('Could not connect to the TaskPayBD server. Please try again.');
+  }
+  const data=await response.json().catch(()=>({ok:false,error:'Server returned an invalid response'}));
+  if(!response.ok||data.ok===false)throw new Error(data.error||`Request failed (HTTP ${response.status})`);
+  return data;
+}
+function notify(title,message){
+  if(tg?.showPopup){tg.showPopup({title,message,buttons:[{type:'ok'}]})}
+  else alert(message)
+}
+function renderAvatar(url,name,size='w-16 h-16'){
+  if(url)return `<img src="${esc(url)}" class="${size} rounded-2xl border-2 border-white/40 object-cover shadow-md">`;
+  return `<div class="${size} rounded-2xl bg-gradient-to-tr from-amber-400 to-rose-400 text-white font-extrabold text-2xl flex items-center justify-center shadow-lg border-2 border-white/40">${esc(name?.charAt(0)||'U').toUpperCase()}</div>`
+}
+async function bootstrap(){
+  if(tg){
+    try{tg.ready();tg.expand()}catch(e){}
+  }
+  if(!tg?.initData){
+    document.getElementById('app-content').innerHTML=`<div class="bg-white rounded-3xl p-7 mt-8 text-center shadow-sm border"><div class="w-16 h-16 rounded-2xl bg-purple-100 text-purple-600 mx-auto flex items-center justify-center text-2xl mb-4"><i class="fa-brands fa-telegram"></i></div><h2 class="font-extrabold text-xl">Open this inside Telegram</h2><p class="text-sm text-gray-500 mt-2">This Mini App needs Telegram authentication.</p></div>`;
+    return
+  }
+  try{
+    const data=await api('/api/bootstrap',{method:'POST',body:'{}'});
+    state=data.state;
+    currentTab='home';
+    switchTab('home');
+  }catch(e){
+    document.getElementById('app-content').innerHTML=`<div class="bg-white rounded-3xl p-7 mt-8 text-center shadow-sm border"><div class="w-16 h-16 rounded-2xl bg-red-100 text-red-600 mx-auto flex items-center justify-center text-2xl mb-4"><i class="fa-solid fa-triangle-exclamation"></i></div><h2 class="font-extrabold text-xl">Unable to load account</h2><p class="text-sm text-gray-500 mt-2">${esc(e.message)}</p><button onclick="bootstrap()" class="mt-5 btn-gradient text-white font-bold px-5 py-3 rounded-xl">Retry</button></div>`
+  }
+}
+function updateState(newState){if(newState)state=newState}
+function switchTab(tab){
+  if(adSession)return;
+  currentTab=tab;
+  ['home','earn','refer','withdraw','profile'].forEach(t=>{
+    const b=document.getElementById('nav-'+t);
+    if(b)b.className=t===tab?'flex flex-col items-center text-purple-600 text-xs font-medium btn-interactive':'flex flex-col items-center text-gray-400 text-xs font-medium btn-interactive'
+  });
+  const app=document.getElementById('app-content');
+  if(!state)return;
+  app.innerHTML=tab==='home'?renderHome():tab==='earn'?renderEarn():tab==='refer'?renderRefer():tab==='withdraw'?renderWithdraw():renderProfile()
+}
+function renderHome(){
+  const tasks=Object.values(state.tasks);
+  const done=tasks.filter(t=>t.status==='done').length;
+  const pending=tasks.length-done;
+  const progress=tasks.length?Math.round(done/tasks.length*100):0;
+  return `
+  <div class="bg-gradient-custom rounded-3xl p-5 text-white shadow-lg animate-slide-left">
+    <div class="flex justify-between items-center mb-4"><div><p class="text-xs text-white/80 font-medium">Welcome back 👋</p><h1 class="text-2xl font-bold">${esc(state.user.first_name)}</h1></div>${renderAvatar(state.user.photo_url,state.user.first_name)}</div>
+    <p class="text-xs text-white/80 font-medium uppercase tracking-wider">Total Balance</p><p class="text-3xl font-extrabold my-1">${fmtCurr(state.balance)}</p><p class="text-xs text-white/90">📈 Total earned: ${fmtCurr(state.totalEarned)}</p>
+  </div>
+  <div class="grid grid-cols-2 gap-3 animate-slide-right">
+    <div onclick="switchTab('withdraw')" class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex items-center space-x-3 cursor-pointer btn-interactive"><div class="w-10 h-10 rounded-xl bg-purple-100 text-purple-600 flex items-center justify-center"><i class="fa-solid fa-wallet"></i></div><div><p class="font-bold text-sm">Withdraw</p><p class="text-xs text-gray-400">Cash out</p></div></div>
+    <div onclick="switchTab('refer')" class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex items-center space-x-3 cursor-pointer btn-interactive"><div class="w-10 h-10 rounded-xl bg-red-100 text-red-500 flex items-center justify-center"><i class="fa-solid fa-user-plus"></i></div><div><p class="font-bold text-sm">Refer</p><p class="text-xs text-gray-400">${fmtCurr(50)} / friend</p></div></div>
+  </div>
+  <div class="bg-gradient-custom rounded-2xl p-4 text-white shadow-sm animate-slide-left">
+    <div class="flex justify-between items-center mb-1"><div class="flex items-center space-x-2"><i class="fa-solid fa-circle-check"></i><span class="font-bold text-sm">Daily Tasks</span></div><button onclick="switchTab('earn')" class="bg-white/20 px-3 py-1 rounded-full text-xs font-semibold backdrop-blur-md btn-interactive">View →</button></div>
+    <p class="text-xs text-white/80 mb-3">${pending?pending+' tasks pending':'All tasks completed!'}</p><div class="w-full bg-black/20 rounded-full h-2 overflow-hidden"><div class="bg-white h-full" style="width:${progress}%"></div></div>
+    <div class="flex justify-between text-xs mt-2 text-white/90"><span>${done} completed</span><span>${progress}%</span></div>
+  </div>
+  <div class="grid grid-cols-2 gap-3 animate-slide-right">
+    <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100"><div class="w-8 h-8 rounded-full bg-purple-50 text-purple-600 flex items-center justify-center mb-2"><i class="fa-solid fa-users text-sm"></i></div><p class="text-2xl font-bold">${state.referrals}</p><p class="text-xs text-gray-400 font-medium">Total Referrals</p></div>
+    <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100"><div class="w-8 h-8 rounded-full bg-pink-50 text-pink-500 flex items-center justify-center mb-2"><i class="fa-solid fa-trophy text-sm"></i></div><p class="text-lg font-bold">${fmtCurr(state.totalEarned)}</p><p class="text-xs text-gray-400 font-medium">Total Earned</p></div>
+  </div>
+  <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 space-y-3 animate-slide-left"><div class="flex items-center space-x-2"><span class="text-xl">🎁</span><h3 class="font-bold text-base">How to earn</h3></div><ol class="space-y-3 text-xs text-gray-600"><li class="flex gap-2.5"><span class="w-5 h-5 bg-purple-600 text-white rounded-full flex items-center justify-center font-bold text-[10px] flex-shrink-0">1</span><span>Watch rewarded video tasks daily up to the limit.</span></li><li class="flex gap-2.5"><span class="w-5 h-5 bg-purple-600 text-white rounded-full flex items-center justify-center font-bold text-[10px] flex-shrink-0">2</span><span>Complete channel and YouTube tasks.</span></li><li class="flex gap-2.5"><span class="w-5 h-5 bg-purple-600 text-white rounded-full flex items-center justify-center font-bold text-[10px] flex-shrink-0">3</span><span>Invite friends and get ${fmtCurr(50)} for each eligible new user.</span></li></ol></div>`
+}
+function renderEarn(){
+  const complete=state.adsWatched>=MAX_ADS;
+  return `<div class="bg-gradient-custom rounded-3xl p-5 text-white shadow-lg animate-slide-left"><p class="text-xs text-white/80 uppercase tracking-wider">Daily Ads</p><div class="flex justify-between items-baseline my-1"><h1 class="text-3xl font-extrabold">Earn</h1><span class="text-xs">Today's reward: <b class="text-sm">${fmtCurr(AD_REWARD)}</b> / ad</span></div></div>
+  <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 space-y-3 animate-slide-right"><div class="flex justify-between text-sm font-bold"><span>Daily Progress</span><span class="text-purple-600">${state.adsWatched} / ${MAX_ADS} watched</span></div><div class="w-full bg-gray-100 rounded-full h-3"><div class="bg-purple-600 h-full rounded-full transition-all" style="width:${Math.min(100,state.adsWatched/MAX_ADS*100)}%"></div></div><button onclick="watchAd()" ${complete?'disabled':''} class="w-full ${complete?'bg-gray-300 text-gray-500 cursor-not-allowed':'bg-purple-600 text-white shadow-md btn-interactive'} font-bold py-3 rounded-xl">${complete?'✓ All Ads Watched Today':'▶ Watch & Earn ৳10'}</button></div>
+  <h3 class="font-bold text-gray-700 pt-2 flex items-center gap-1.5 animate-slide-left"><i class="fa-solid fa-circle-check text-purple-600"></i> Tasks</h3><div class="space-y-3 animate-slide-left">${Object.keys(state.tasks).map(k=>renderTaskCard(k)).join('')}</div>`
+}
+function renderTaskCard(key){
+  const t=state.tasks[key];
+  let btn=t.status==='join'?`<button onclick="startTask('${key}')" class="bg-purple-50 text-purple-600 border border-purple-200 px-4 py-1.5 rounded-full text-xs font-bold flex items-center gap-1 btn-interactive">Join <i class="fa-solid fa-arrow-up-right-from-square text-[10px]"></i></button>`:t.status==='claim'?`<button onclick="claimTask('${key}')" class="bg-green-600 text-white px-4 py-1.5 rounded-full text-xs font-bold shadow-md btn-interactive">Claim</button>`:`<span class="bg-gray-100 text-gray-400 px-3 py-1.5 rounded-full text-xs font-bold"><i class="fa-solid fa-check"></i> Done</span>`;
+  const iconColor=t.icon==='youtube'?'bg-red-100 text-red-600':'bg-blue-100 text-blue-500';
+  return `<div class="bg-white p-4 rounded-2xl border border-gray-100 flex items-center justify-between shadow-sm"><div class="flex items-center space-x-3 min-w-0"><div class="w-10 h-10 rounded-xl ${iconColor} flex items-center justify-center text-lg flex-shrink-0"><i class="fa-brands fa-${t.icon}"></i></div><div class="min-w-0"><p class="font-bold text-sm truncate">${esc(t.title)}</p><div class="flex items-center gap-2 mt-0.5"><span class="bg-purple-100 text-purple-600 text-[10px] font-bold px-2 py-0.5 rounded-md">+${fmtCurr(t.reward)}</span><span class="bg-gray-100 text-gray-500 text-[9px] font-bold px-1.5 py-0.5 rounded uppercase">${esc(t.category)}</span></div></div></div>${btn}</div>`
+}
+async function startTask(key){
+  try{
+    const data=await api('/api/task/start',{method:'POST',body:JSON.stringify({taskKey:key})});
+    updateState(data.state);
+    switchTab('earn');
+    if(state.tasks[key].type==='telegram'&&tg?.openTelegramLink)tg.openTelegramLink(data.link);
+    else window.open(data.link,'_blank');
+  }catch(e){notify('Task',e.message)}
+}
+async function claimTask(key){
+  try{
+    const data=await api('/api/task/claim',{method:'POST',body:JSON.stringify({taskKey:key})});
+    updateState(data.state);
+    switchTab('earn');
+    notify('Reward added',`You received ${fmtCurr(data.reward)}.`);
+  }catch(e){notify('Task',e.message)}
+}
+async function watchAd(){
+  if(adSession||rewardedAdRunning||state.adsWatched>=MAX_ADS)return;
+  try{
+    rewardedAdRunning=true;
+
+    const data=await api('/api/ad/start',{method:'POST',body:'{}'});
+    adSession=data;
+
+    if(data.url){
+      window.open(data.url,'_blank');
+    }
+
+    renderAdModal();
+
+    let rewardedCompleted=false;
+
+    if(typeof show_11618387==='function'){
+      try{
+        await show_11618387();
+        rewardedCompleted=true;
+      }catch(e){
+        rewardedCompleted=false;
+      }
+    }
+
+    let remaining=AD_SECONDS;
+
+    adTimer=setInterval(async()=>{
+      remaining--;
+      updateAdTimer(remaining);
+
+      if(remaining<=0){
+        clearInterval(adTimer);
+        adTimer=null;
+
+        if(!rewardedCompleted){
+          adSession=null;
+          rewardedAdRunning=false;
+          closeModal();
+          notify('Ad','The rewarded ad was not completed, so no reward was added.');
+          return;
+        }
+
+        try{
+          const result=await api('/api/ad/complete',{
+            method:'POST',
+            body:JSON.stringify({sessionId:adSession.sessionId})
+          });
+
+          updateState(result.state);
+          adSession=null;
+          rewardedAdRunning=false;
+          closeModal();
+          switchTab(currentTab);
+          notify('Reward added',`You earned ${fmtCurr(result.reward)}.`);
+        }catch(e){
+          adSession=null;
+          rewardedAdRunning=false;
+          closeModal();
+          notify('Ad',e.message);
+        }
+      }
+    },1000);
+
+  }catch(e){
+    if(adTimer){
+      clearInterval(adTimer);
+      adTimer=null;
+    }
+    adSession=null;
+    rewardedAdRunning=false;
+    closeModal();
+    notify('Ads',e.message);
+  }
+}
+function renderAdModal(){
+  document.getElementById('modal-container').innerHTML=`<div class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-6"><div class="bg-white rounded-3xl p-6 w-full max-w-xs text-center shadow-2xl"><div class="w-16 h-16 rounded-2xl bg-gradient-to-tr from-purple-600 to-pink-500 flex items-center justify-center mx-auto text-white text-2xl shadow-md mb-4"><i class="fa-regular fa-clock"></i></div><h2 class="text-xl font-bold mb-2">এড দেখছেন...</h2><p class="text-sm text-gray-600 font-medium mb-5">Reward পেতে আরো <b id="ad-seconds-text" class="text-lg text-purple-700 font-extrabold">${AD_SECONDS}s</b></p><div class="w-full bg-gray-100 rounded-full h-2.5 mb-5 overflow-hidden"><div id="ad-progress-bar" class="bg-gradient-to-r from-purple-600 to-pink-500 h-full rounded-full transition-all duration-1000" style="width:0%"></div></div><p class="text-[11px] text-gray-400 font-medium">এখন বন্ধ করবেন না — timer শেষ হওয়ার আগে বন্ধ করলে reward পাবেন না।</p></div></div>`
+}
+function updateAdTimer(sec){
+  const s=document.getElementById('ad-seconds-text');
+  const b=document.getElementById('ad-progress-bar');
+  if(s)s.innerText=sec+'s';
+  if(b)b.style.width=((AD_SECONDS-sec)/AD_SECONDS*100)+'%';
+}
+function closeModal(){document.getElementById('modal-container').innerHTML=''}
+function renderRefer(){
+  const board=state.leaderboard||[];
+  const link=state.directAppReferralLink||state.referralLink;
+  return `<div class="bg-gradient-custom rounded-3xl p-6 text-white text-center shadow-lg relative overflow-hidden animate-slide-left"><div class="w-12 h-12 bg-white/20 rounded-2xl mx-auto flex items-center justify-center text-2xl mb-2"><i class="fa-solid fa-user-plus"></i></div><h2 class="text-2xl font-extrabold">Invite & Earn</h2><p class="text-xs text-white/90 mt-1">Get <b>${fmtCurr(50)}</b> for every eligible friend</p><div class="mt-4 bg-white/20 p-1.5 pl-4 rounded-full flex items-center justify-between text-xs border border-white/20"><span class="truncate pr-2 font-mono text-[10px]">${esc(link)}</span><div class="flex gap-1 flex-shrink-0"><button onclick="copyReferLink()" class="bg-white/30 text-white p-2 rounded-full btn-interactive"><i class="fa-regular fa-copy"></i></button><button onclick="shareReferLink()" class="bg-white/30 text-white p-2 rounded-full btn-interactive"><i class="fa-solid fa-share-nodes"></i></button></div></div></div>
+  <div class="grid grid-cols-2 gap-3 animate-slide-right"><div class="bg-white p-4 rounded-2xl shadow-sm border text-center"><p class="text-xs text-gray-400">Total Referrals</p><p class="text-3xl font-extrabold my-1">${state.referrals}</p></div><div class="bg-white p-4 rounded-2xl shadow-sm border text-center"><p class="text-xs text-gray-400">Referral Earned</p><p class="text-sm font-extrabold text-purple-600 my-1">${fmtCurr(state.referrals*50)}</p></div></div>
+  <div class="bg-white p-1 rounded-2xl shadow-sm border flex space-x-1"><button onclick="setReferTab('leaderboard')" class="flex-1 py-2.5 rounded-xl text-xs font-bold ${activeReferTab==='leaderboard'?'btn-gradient text-white':'text-gray-500'}">🏆 Leaderboard</button><button onclick="setReferTab('my_referrals')" class="flex-1 py-2.5 rounded-xl text-xs font-bold ${activeReferTab==='my_referrals'?'btn-gradient text-white':'text-gray-500'}">👥 Your Referrals</button></div>
+  <div>${activeReferTab==='leaderboard'?renderLeaderboard(board):renderMyReferrals()}</div>`
+}
+function renderLeaderboard(board){
+  if(!board.length)return `<div class="bg-white p-8 rounded-3xl text-center text-gray-400">No referral data yet.</div>`;
+  return `<div class="space-y-2.5">${board.map((x,i)=>`<div class="${i===0?'bg-gradient-to-r from-amber-50 to-orange-50':'bg-white'} p-3.5 rounded-2xl border shadow-sm flex items-center justify-between"><div class="flex items-center space-x-3 truncate"><span class="text-xs font-bold text-purple-600 w-6 text-center">${i<3?['🥇','🥈','🥉'][i]:'#'+(i+1)}</span>${x.avatar?`<img src="${esc(x.avatar)}" class="w-10 h-10 rounded-full object-cover border border-purple-200">`:`<div class="w-10 h-10 rounded-full bg-purple-100 text-purple-700 font-bold flex items-center justify-center">${esc(x.name.charAt(0))}</div>`}<div class="truncate"><p class="font-bold text-sm truncate">${esc(x.name)} ${x.isCurrentUser?'<span class="text-[10px] bg-purple-100 text-purple-600 px-1.5 py-0.5 rounded ml-1">You</span>':''}</p><p class="text-[11px] text-gray-400">Referrals</p></div></div><div class="text-right"><p class="font-extrabold text-purple-700 text-sm">${x.count}</p></div></div>`).join('')}</div>`
+}
+function renderMyReferrals(){
+  if(!state.referralsList?.length)return `<div class="bg-white p-8 rounded-3xl border border-dashed text-center space-y-3"><div class="w-14 h-14 bg-purple-50 text-purple-500 rounded-2xl mx-auto flex items-center justify-center text-2xl"><i class="fa-solid fa-user-group"></i></div><h3 class="font-bold">No referrals yet</h3><p class="text-xs text-gray-400">Share your link with friends to start earning.</p></div>`;
+  return `<div class="space-y-2.5">${state.referralsList.map(r=>`<div class="bg-white p-3.5 rounded-2xl border shadow-sm flex items-center justify-between"><div class="flex items-center space-x-3"><div class="w-10 h-10 rounded-full bg-purple-100 text-purple-700 font-bold flex items-center justify-center">${esc(r.name.charAt(0))}</div><div><p class="font-bold text-sm">${esc(r.name)}</p><p class="text-[11px] text-gray-400">Joined ${esc(r.date)}</p></div></div><span class="btn-gradient text-white px-3 py-1 rounded-full text-xs font-extrabold">+${fmtCurr(50)}</span></div>`).join('')}</div>`
+}
+function setReferTab(tab){activeReferTab=tab;switchTab('refer')}
+async function copyReferLink(){
+  const link=state.directAppReferralLink||state.referralLink;
+  try{await navigator.clipboard.writeText(link);notify('Copied','Referral link copied.')}catch(e){notify('Referral link',link)}
+}
+function shareReferLink(){
+  const link=state.directAppReferralLink||state.referralLink;
+  const url=`https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent('Join Bangla Task Hub and earn daily rewards!')}`;
+  if(tg?.openTelegramLink)tg.openTelegramLink(url);else window.open(url,'_blank')
+}
+function renderWithdraw(){
+  const history=state.withdrawHistory||[];
+  return `<div class="bg-white p-5 rounded-3xl shadow-sm border space-y-4 animate-slide-left"><div class="flex items-center space-x-2 text-purple-700"><i class="fa-solid fa-arrow-down-long"></i><h2 class="font-extrabold text-lg">Request Payout</h2></div><div><label class="text-xs font-bold block mb-2">Payment Method</label><div class="grid grid-cols-3 gap-2"><button id="method-bkash" onclick="selectMethod('bkash')" class="p-3 rounded-2xl border text-xs font-bold">bKash</button><button id="method-nagad" onclick="selectMethod('nagad')" class="p-3 rounded-2xl border text-xs font-bold">Nagad</button><button id="method-usdt" onclick="selectMethod('usdt')" class="p-3 rounded-2xl border text-xs font-bold">USDT</button></div></div><div><label class="text-xs font-bold block mb-1">Account / Address</label><input id="withdraw-account" type="text" placeholder="01XXXXXXXXX" class="w-full bg-slate-50 border border-gray-200 rounded-2xl p-3.5 text-sm outline-none focus:border-purple-600"></div><div><div class="flex justify-between mb-1"><label class="text-xs font-bold">Amount</label><span id="withdraw-min" class="text-[11px] text-emerald-600 font-bold">Min: ৳ 1,020.00</span></div><input id="withdraw-amount" type="number" step="0.01" value="1020" class="w-full bg-slate-50 border border-gray-200 rounded-2xl p-3.5 text-base font-extrabold outline-none focus:border-purple-600"></div><button onclick="processWithdraw()" class="w-full btn-gradient text-white font-extrabold py-4 rounded-2xl shadow-md">Request Payout</button><p class="text-[10px] text-gray-400 text-center">Available balance: ${fmtCurr(state.balance)}</p></div><div class="space-y-2 animate-slide-right"><h3 class="font-extrabold text-sm px-1">Recent Transactions</h3>${history.length?`<div class="space-y-2">${history.map(x=>`<div class="bg-white p-3.5 rounded-2xl border shadow-sm flex items-center justify-between"><div><p class="font-bold text-xs">${esc(x.method.toUpperCase())} · ${esc(x.account)}</p><p class="text-[10px] text-gray-400">${esc(x.date)}</p></div><div class="text-right"><p class="font-extrabold text-sm">${x.currency==='USDT'?'$':'৳'}${Number(x.amount).toFixed(2)}</p><span class="text-[9px] font-bold px-2 py-0.5 rounded-full ${x.status==='paid'?'bg-green-100 text-green-700':x.status==='rejected'?'bg-red-100 text-red-700':'bg-amber-100 text-amber-700'}">${esc(x.status)}</span></div></div>`).join('')}</div>`:`<div class="bg-white/50 p-8 rounded-2xl border border-dashed text-center text-gray-400 text-xs">No withdrawal history yet.</div>`}</div>`
+}
+let withdrawMethod='bkash';
+function selectMethod(m){
+  withdrawMethod=m;
+  switchTab('withdraw');
+  setTimeout(()=>{
+    const buttons=['bkash','nagad','usdt'];
+    buttons.forEach(x=>{
+      const b=document.getElementById('method-'+x);
+      if(b)b.className=x===m?'p-3 rounded-2xl border bg-purple-600 border-purple-600 text-white text-xs font-bold':'p-3 rounded-2xl border bg-gray-50 text-gray-700 text-xs font-bold'
+    });
+    const input=document.getElementById('withdraw-amount');
+    const min=document.getElementById('withdraw-min');
+    const account=document.getElementById('withdraw-account');
+    if(m==='usdt'){
+      input.value=10;
+      min.innerText='Min: $10.00';
+      account.placeholder='TRC20 address'
+    }else{
+      input.value=1020;
+      min.innerText='Min: ৳ 1,020.00';
+      account.placeholder='01XXXXXXXXX'
+    }
+  },0)
+}
+async function processWithdraw(){
+  const account=document.getElementById('withdraw-account')?.value.trim();
+  const amount=Number(document.getElementById('withdraw-amount')?.value);
+  if(!account||!amount)return notify('Withdrawal','Enter your account/address and amount.');
+  try{
+    const data=await api('/api/withdraw',{method:'POST',body:JSON.stringify({method:withdrawMethod,account,amount})});
+    updateState(data.state);
+    switchTab('withdraw');
+    notify('Request submitted','Your withdrawal request is now pending manual review.');
+  }catch(e){notify('Withdrawal',e.message)}
+}
+function renderProfile(){
+  return `<div class="bg-profile-banner rounded-3xl p-6 text-white text-center shadow-lg animate-slide-left"><div class="mx-auto flex justify-center mb-2">${renderAvatar(state.user.photo_url,state.user.first_name)}</div><h2 class="text-xl font-extrabold">${esc(state.user.first_name)}</h2><p class="text-xs text-white/80">ID: ${esc(state.user.id)}</p><span class="inline-block mt-2 bg-white/20 px-3 py-1 rounded-full text-[10px] font-bold uppercase">Member Since ${esc(state.joinedDate)}</span></div>
+  <div class="bg-white p-5 rounded-2xl shadow-sm border space-y-3 animate-slide-right"><h3 class="font-bold text-sm mb-2">Account Statistics</h3><div class="flex justify-between py-2 border-b text-xs"><span class="text-gray-500">Current Balance</span><b>${fmtCurr(state.balance)}</b></div><div class="flex justify-between py-2 border-b text-xs"><span class="text-gray-500">Total Earned</span><b class="text-purple-600">${fmtCurr(state.totalEarned)}</b></div><div class="flex justify-between py-2 border-b text-xs"><span class="text-gray-500">Total Referrals</span><b>${state.referrals}</b></div><div class="flex justify-between py-2 text-xs"><span class="text-gray-500">Ads Watched Today</span><b>${state.adsWatched} / ${MAX_ADS}</b></div></div>
+  <div class="bg-white p-5 rounded-2xl shadow-sm border space-y-3 animate-slide-left"><div class="flex items-center space-x-2 text-purple-600"><i class="fa-solid fa-triangle-exclamation"></i><h3 class="font-bold text-sm">Withdrawal Requirements & Rules</h3></div><ul class="space-y-2 text-xs text-gray-600 list-disc pl-4 leading-relaxed"><li>Minimum bKash/Nagad withdrawal is <b>৳ 1,020.00</b> and USDT is <b>$10.00</b>.</li><li>Cashout requests are manually reviewed.</li><li>Only use an account/address that belongs to you.</li><li>Self-referrals and duplicate accounts are prohibited.</li><li>Telegram tasks require the bot to be able to verify channel membership.</li></ul></div>`
+}
+window.addEventListener('DOMContentLoaded',bootstrap);
+</script>
+</body>
+</html>
