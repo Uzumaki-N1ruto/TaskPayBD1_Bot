@@ -14,7 +14,7 @@ from zoneinfo import ZoneInfo
 
 from flask import Flask, jsonify, request
 
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardRemove
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardRemove, WebAppInfo, WebAppInfo
 from telegram.ext import Application, CommandHandler, ContextTypes, CallbackQueryHandler, MessageHandler, filters
 
 BOT_TOKEN = os.environ.get("BOT_TOKEN")
@@ -335,7 +335,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         [
             InlineKeyboardButton(
                 get_setting("website_label"),
-                url=get_setting("website_url")
+                web_app=WebAppInfo(url=get_setting("website_url"))
             )
         ],
         [
