@@ -31,16 +31,16 @@ MAX_ADS = 10
 AD_SECONDS = 25
 
 AD_LINKS = [
-    "https://youtube.com/shorts/QKQLl0VQw6I?si=oWzwF_JFcu9b96Gl",
-    "https://youtube.com/shorts/RtUEhRlqcF4?si=QQaPldQUd7bAQvRu",
-    "https://youtube.com/shorts/DXMFCrGSxcg?si=vhQdzi_JavwH5HaW",
-    "https://youtube.com/shorts/ZV6ov1vN7p0?si=sEl3DHCBwzSh_jMr",
-    "https://youtube.com/shorts/Z_khK3dd7bw?si=sBPm_crQ-La2YpIc",
-    "https://youtube.com/shorts/xelHWngAHBk?si=zhAEOkY_vulRJRow",
-    "https://youtube.com/shorts/gRNG27bz030?si=_I99Ip5eaeGvcPeC",
-    "https://youtube.com/shorts/5ZKCfwyWnsU?si=QyztD7LJUA8d8tQk",
-    "https://youtube.com/shorts/u49VfbSJ8-o?si=rKqtyg1gVMitdY0g",
-    "https://youtube.com/shorts/XUXIstcmVuw?si=sEjXEGGMsIKzQ4iq"
+    "https://youtube.com/shorts/_rq5NJ8rn6o?si=Qo-b5SPX6n9m3gj4",
+    "https://youtube.com/shorts/yujIBKJ84u8?si=R3A7qFcHgydauRfC",
+    "https://youtube.com/shorts/UUPmROUS4CE?si=EJ4JixDnp9huFRJ0",
+    "https://youtube.com/shorts/7i0ACoGY5bA?si=G_hc5b6D9eWcw5UL",
+    "https://youtube.com/shorts/g_n2mhPluck?si=-2ZpAm2ruynfDMKy",
+    "https://youtube.com/shorts/qkpUZHzqSNI?si=zjhoM8vRb5M0NG5C",
+    "https://youtube.com/shorts/OfPAKfBl5Oo?si=m9GTmFV4obfyLOW4",
+    "https://youtube.com/shorts/wmhT3jxJ6xM?si=DceIyoPllFKr4vLc",
+    "https://youtube.com/shorts/z8XQ64pWsdw?si=nexbIswSraPObrJS",
+    "https://youtube.com/shorts/Ts5JOIBYtiM?si=o03TLbgLu8cGS4Qg"
 ]
 
 TASKS = {
