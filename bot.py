@@ -373,6 +373,9 @@ def owner_keyboard():
             InlineKeyboardButton("💰 Balance", callback_data="admin_balance")
         ],
         [
+            InlineKeyboardButton("👥 Invites", callback_data="admin_invites")
+        ],
+        [
             InlineKeyboardButton("🔘 Button Editor", callback_data="button_editor")
         ],
         [
@@ -395,6 +398,21 @@ def balance_keyboard():
         ],
         [
             InlineKeyboardButton("🔎 Search User", callback_data="balance_search")
+        ],
+        [
+            InlineKeyboardButton("🔙 Back", callback_data="admin_home")
+        ]
+    ])
+
+
+def invites_keyboard():
+    return InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("➕ Add Invite", callback_data="invite_add"),
+            InlineKeyboardButton("➖ Remove Invite", callback_data="invite_remove")
+        ],
+        [
+            InlineKeyboardButton("🔢 Set Invite", callback_data="invite_set")
         ],
         [
             InlineKeyboardButton("🔙 Back", callback_data="admin_home")
@@ -762,6 +780,50 @@ async def admin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
+    if action == "admin_invites":
+        context.user_data.clear()
+        await query.edit_message_text(
+            "👥 INVITE CONTROL\n\nChoose an action:",
+            reply_markup=invites_keyboard()
+        )
+        return
+
+    if action == "invite_add":
+        context.user_data.clear()
+        context.user_data["mode"] = "invite_add_user"
+        await query.edit_message_text(
+            "➕ ADD INVITE\n\n"
+            "Send the user's Telegram ID.\n\n"
+            "Example:\n"
+            "123456789\n\n"
+            "Send /cancel to cancel."
+        )
+        return
+
+    if action == "invite_remove":
+        context.user_data.clear()
+        context.user_data["mode"] = "invite_remove_user"
+        await query.edit_message_text(
+            "➖ REMOVE INVITE\n\n"
+            "Send the user's Telegram ID.\n\n"
+            "Example:\n"
+            "123456789\n\n"
+            "Send /cancel to cancel."
+        )
+        return
+
+    if action == "invite_set":
+        context.user_data.clear()
+        context.user_data["mode"] = "invite_set_user"
+        await query.edit_message_text(
+            "🔢 SET INVITE\n\n"
+            "Send the user's Telegram ID.\n\n"
+            "Example:\n"
+            "123456789\n\n"
+            "Send /cancel to cancel."
+        )
+        return
+
     if action == "balance_add":
         context.user_data["mode"] = "add_balance"
         await query.edit_message_text(
@@ -956,6 +1018,143 @@ async def owner_text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE)
     text = (update.message.text or "").strip()
 
     if not text:
+        return
+
+    if mode in {
+        "invite_add_user",
+        "invite_remove_user",
+        "invite_set_user"
+    }:
+        try:
+            telegram_id = int(text)
+        except ValueError:
+            await update.message.reply_text(
+                "❌ Enter a valid Telegram ID."
+            )
+            return
+
+        target = await get_user_async(telegram_id)
+
+        if not target:
+            await update.message.reply_text(
+                "❌ User not found.\n\n"
+                "Make sure the Telegram ID belongs to a registered user."
+            )
+            return
+
+        context.user_data["invite_user_id"] = telegram_id
+
+        if mode == "invite_add_user":
+            next_mode = "invite_add_amount"
+            action_text = "➕ ADD INVITE"
+
+        elif mode == "invite_remove_user":
+            next_mode = "invite_remove_amount"
+            action_text = "➖ REMOVE INVITE"
+
+        else:
+            next_mode = "invite_set_amount"
+            action_text = "🔢 SET INVITE"
+
+        context.user_data["mode"] = next_mode
+
+        await update.message.reply_text(
+            f"{action_text}\n\n"
+            f"User: {target['first_name']}\n"
+            f"Telegram ID: {target['telegram_id']}\n"
+            f"Current invites: {target['referrals']}\n\n"
+            "How many invites do you want to change?\n\n"
+            "Send a whole number.\n\n"
+            "Example:\n"
+            "5\n\n"
+            "Send /cancel to cancel."
+        )
+        return
+
+    if mode in {
+        "invite_add_amount",
+        "invite_remove_amount",
+        "invite_set_amount"
+    }:
+        try:
+            amount = int(text)
+        except ValueError:
+            await update.message.reply_text(
+                "❌ Invite amount must be a whole number."
+            )
+            return
+
+        if amount < 0:
+            await update.message.reply_text(
+                "❌ Invite amount cannot be negative."
+            )
+            return
+
+        telegram_id = context.user_data.get(
+            "invite_user_id"
+        )
+
+        if not telegram_id:
+            context.user_data.clear()
+            await update.message.reply_text(
+                "❌ Invite user information was lost. "
+                "Please open Invite Control again.",
+                reply_markup=owner_keyboard()
+            )
+            return
+
+        target = await get_user_async(telegram_id)
+
+        if not target:
+            context.user_data.clear()
+            await update.message.reply_text(
+                "❌ User not found.",
+                reply_markup=owner_keyboard()
+            )
+            return
+
+        current = int(target["referrals"])
+
+        if mode == "invite_add_amount":
+            new_count = current + amount
+            operation_text = f"+{amount}"
+
+        elif mode == "invite_remove_amount":
+            if amount > current:
+                await update.message.reply_text(
+                    f"❌ User only has {current} invites.\n\n"
+                    f"You cannot remove {amount} invites."
+                )
+                return
+
+            new_count = current - amount
+            operation_text = f"-{amount}"
+
+        else:
+            new_count = amount
+            operation_text = f"→ {amount}"
+
+        await db_execute(
+            """
+            UPDATE users
+            SET referrals=$1
+            WHERE telegram_id=$2
+            """,
+            new_count,
+            telegram_id
+        )
+
+        context.user_data.clear()
+
+        await update.message.reply_text(
+            "✅ Invites updated successfully.\n\n"
+            f"👤 User: {target['first_name']}\n"
+            f"🆔 Telegram ID: {telegram_id}\n"
+            f"📊 Change: {operation_text}\n"
+            f"👥 Previous invites: {current}\n"
+            f"👥 New invites: {new_count}",
+            reply_markup=owner_keyboard()
+        )
         return
 
     if mode in {"add_balance", "remove_balance"}:
@@ -1337,7 +1536,8 @@ async def my_referrals_callback(update: Update, context: ContextTypes.DEFAULT_TY
         """
         SELECT u.first_name,u.username,r.created_at
         FROM referrals r
-        JOIN users u ON u.telegram_id=r.referred_id
+        JOIN users u
+        ON u.telegram_id=r.referred_id
         WHERE r.referrer_id=$1
         ORDER BY r.id DESC
         """,
@@ -2808,7 +3008,7 @@ def main():
     application.add_handler(
         CallbackQueryHandler(
             admin_callback,
-            pattern=r"^(admin_|pay_|reject_|button_|post_)"
+            pattern=r"^(admin_|pay_|reject_|button_|post_|invite_)"
         )
     )
 
